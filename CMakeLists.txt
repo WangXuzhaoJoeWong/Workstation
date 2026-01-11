@@ -52,11 +52,38 @@ endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
+# Third-party dependency root
+#
+# In the wxz_robot workspace layout, the heavy binary dependencies live in the workspace root
+# (../depends) and are intentionally NOT part of the Workstation git repository.
+#
+# You can override this path when building Workstation as a standalone repo:
+#   cmake -S Workstation -B build -DWXZ_WORKSTATION_DEPS_ROOT=/abs/path/to/depends
+set(_wxz_deps_root_default "")
+foreach(_cand IN ITEMS
+    "${CMAKE_CURRENT_LIST_DIR}/../depends"
+    "${CMAKE_CURRENT_LIST_DIR}/depends"
+)
+    if(EXISTS "${_cand}")
+        set(_wxz_deps_root_default "${_cand}")
+        break()
+    endif()
+endforeach()
+
+set(WXZ_WORKSTATION_DEPS_ROOT "${_wxz_deps_root_default}" CACHE PATH "Workstation third-party dependency root (contains CGXi_Robot_SDK, Groot, BehaviorTree.CPP, etc.)")
+if(NOT WXZ_WORKSTATION_DEPS_ROOT OR NOT EXISTS "${WXZ_WORKSTATION_DEPS_ROOT}")
+    message(FATAL_ERROR "WXZ_WORKSTATION_DEPS_ROOT not found. Current value: '${WXZ_WORKSTATION_DEPS_ROOT}'. Expected a directory that contains 'CGXi_Robot_SDK'.")
+endif()
+
 option(WXZ_WORKSTATION_ENABLE_BT "Build Workstation BehaviorTree services" OFF)
-set(WXZ_WORKSTATION_BT_ROOT "" CACHE PATH "Optional path to a local BehaviorTree.CPP v3 checkout")
+set(_wxz_bt_root_default "")
+if(EXISTS "${WXZ_WORKSTATION_DEPS_ROOT}/BehaviorTree.CPP/CMakeLists.txt")
+    set(_wxz_bt_root_default "${WXZ_WORKSTATION_DEPS_ROOT}/BehaviorTree.CPP")
+endif()
+set(WXZ_WORKSTATION_BT_ROOT "${_wxz_bt_root_default}" CACHE PATH "Optional path to a local BehaviorTree.CPP v3 checkout")
 option(WXZ_WORKSTATION_BT_FETCHCONTENT "Fetch BehaviorTree.CPP v3 via FetchContent when not found locally" OFF)
 
-set(WXZ_WORKSTATION_SDK_ROOT "${CMAKE_CURRENT_LIST_DIR}/depends/CGXi_Robot_SDK")
+set(WXZ_WORKSTATION_SDK_ROOT "${WXZ_WORKSTATION_DEPS_ROOT}/CGXi_Robot_SDK")
 set(WXZ_WORKSTATION_SDK_INCLUDE "${WXZ_WORKSTATION_SDK_ROOT}/include")
 set(WXZ_WORKSTATION_SDK_LIBDIR "${WXZ_WORKSTATION_SDK_ROOT}/libs")
 

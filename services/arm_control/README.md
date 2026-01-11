@@ -8,7 +8,7 @@ REPO_ROOT=$(pwd)
 BUILD_DIR=$REPO_ROOT/../build_wxz_robot
 
 cd $BUILD_DIR/Workstation && \
-LD_LIBRARY_PATH=$REPO_ROOT/Workstation/depends/CGXi_Robot_SDK/libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} \
+LD_LIBRARY_PATH=$REPO_ROOT/depends/CGXi_Robot_SDK/libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} \
 WXZ_DOMAIN_ID=0 ./workstation_arm_control_service
 
 ```
