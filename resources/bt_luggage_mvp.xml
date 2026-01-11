@@ -1,0 +1,85 @@
+<?xml version="1.0"?>
+<root main_tree_to_execute="BehaviorTree">
+    <!-- ////////// -->
+    <BehaviorTree ID="BehaviorTree">
+        <Fallback name="luggage_mvp">
+            <Condition ID="TaskState" state="done" task="luggage"/>
+            <Sequence name="run_once">
+                <Action ID="WaitTaskState" state="start" task="luggage" timeout_ms="0"/>
+                <Action ID="SetTaskState" state="DETECTING" task="luggage"/>
+                <Action ID="TriggerCamera2" op="snapshot" request_id="{cam2_req}"/>
+                <RetryUntilSuccessful num_attempts="{BT_CAM2_DET_RETRY}">
+                    <Action ID="WaitForDetection" is_full="" pose="{det_pose}"/>
+                </RetryUntilSuccessful>
+                <Action ID="SetTaskState" state="PLANNING_GRAB" task="luggage"/>
+                <Action ID="SetTaskState" state="EXEC_GRAB" task="luggage"/>
+                <Action ID="CloseGripper"/>
+                <Action ID="SetTaskState" state="PLANNING_PLACE" task="luggage"/>
+                <Action ID="SetTaskState" state="EXEC_PLACE" task="luggage"/>
+                <Action ID="OpenGripper"/>
+                <Action ID="SetTaskState" state="VERIFYING" task="luggage"/>
+                <Action ID="TriggerCamera3" op="snapshot" request_id="{cam3_req}"/>
+                <RetryUntilSuccessful num_attempts="{BT_PALLET_RETRY}">
+                    <Action ID="WaitForPalletStatus" is_full="{is_full}" pose=""/>
+                </RetryUntilSuccessful>
+                <Action ID="SetTaskState" state="done" task="luggage"/>
+            </Sequence>
+        </Fallback>
+    </BehaviorTree>
+    <!-- ////////// -->
+    <TreeNodesModel>
+        <Action ID="ArmMoveL">
+            <input_port name="acc" type="std::string"/>
+            <input_port name="jerk" type="std::string"/>
+            <input_port name="jointpos" type="std::string"/>
+            <input_port name="pose" type="std::string"/>
+            <input_port name="speed" type="std::string"/>
+        </Action>
+        <Action ID="ArmPathDownload">
+            <input_port name="file" type="std::string"/>
+            <input_port name="index" type="std::string"/>
+            <input_port name="maxPoints" type="std::string"/>
+            <input_port name="moveType" type="std::string"/>
+        </Action>
+        <Action ID="ArmPlanPath">
+            <input_port name="acc" type="std::string"/>
+            <output_port name="file" type="std::string"/>
+            <input_port name="file_hint" type="std::string"/>
+            <input_port name="jerk" type="std::string"/>
+            <input_port name="pose" type="std::string"/>
+            <input_port name="speed" type="std::string"/>
+        </Action>
+        <Action ID="CloseGripper"/>
+        <Action ID="OpenGripper"/>
+        <Action ID="SetTaskState">
+            <input_port name="state" type="std::string"/>
+            <input_port name="task" type="std::string"/>
+        </Action>
+        <Action ID="WaitTaskState">
+            <input_port name="state" type="std::string"/>
+            <input_port name="task" type="std::string"/>
+            <input_port name="timeout_ms" type="std::uint64_t"/>
+        </Action>
+        <Condition ID="TaskState">
+            <input_port name="state" type="std::string"/>
+            <input_port name="task" type="std::string"/>
+        </Condition>
+        <Action ID="TriggerCamera2">
+            <input_port name="op" type="std::string">snapshot</input_port>
+            <output_port name="request_id" type="std::string"/>
+        </Action>
+        <Action ID="TriggerCamera3">
+            <input_port name="op" type="std::string">snapshot</input_port>
+            <output_port name="request_id" type="std::string"/>
+        </Action>
+        <Action ID="WaitForDetection">
+            <output_port name="is_full" type="std::string"/>
+            <output_port name="pose" type="std::string"/>
+        </Action>
+        <Action ID="WaitForPalletStatus">
+            <output_port name="is_full" type="std::string"/>
+            <output_port name="pose" type="std::string"/>
+        </Action>
+    </TreeNodesModel>
+    <!-- ////////// -->
+</root>
