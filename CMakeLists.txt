@@ -75,13 +75,21 @@ if(NOT WXZ_WORKSTATION_DEPS_ROOT OR NOT EXISTS "${WXZ_WORKSTATION_DEPS_ROOT}")
     message(FATAL_ERROR "WXZ_WORKSTATION_DEPS_ROOT not found. Current value: '${WXZ_WORKSTATION_DEPS_ROOT}'. Expected a directory that contains 'CGXi_Robot_SDK'.")
 endif()
 
-option(WXZ_WORKSTATION_ENABLE_BT "Build Workstation BehaviorTree services" OFF)
+option(WXZ_WORKSTATION_ENABLE_BT "Build Workstation BehaviorTree services" ON)
+
 set(_wxz_bt_root_default "")
 if(EXISTS "${WXZ_WORKSTATION_DEPS_ROOT}/BehaviorTree.CPP/CMakeLists.txt")
     set(_wxz_bt_root_default "${WXZ_WORKSTATION_DEPS_ROOT}/BehaviorTree.CPP")
 endif()
 set(WXZ_WORKSTATION_BT_ROOT "${_wxz_bt_root_default}" CACHE PATH "Optional path to a local BehaviorTree.CPP v3 checkout")
-option(WXZ_WORKSTATION_BT_FETCHCONTENT "Fetch BehaviorTree.CPP v3 via FetchContent when not found locally" OFF)
+
+# For standalone Workstation repos (no ../depends/BehaviorTree.CPP), default to FetchContent so
+# bt_service still builds out-of-the-box.
+set(_wxz_bt_fetchcontent_default OFF)
+if(NOT WXZ_WORKSTATION_BT_ROOT)
+    set(_wxz_bt_fetchcontent_default ON)
+endif()
+option(WXZ_WORKSTATION_BT_FETCHCONTENT "Fetch BehaviorTree.CPP v3 via FetchContent when not found locally" ${_wxz_bt_fetchcontent_default})
 
 set(WXZ_WORKSTATION_SDK_ROOT "${WXZ_WORKSTATION_DEPS_ROOT}/CGXi_Robot_SDK")
 set(WXZ_WORKSTATION_SDK_INCLUDE "${WXZ_WORKSTATION_SDK_ROOT}/include")
