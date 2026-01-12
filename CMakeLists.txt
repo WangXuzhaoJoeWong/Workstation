@@ -50,8 +50,6 @@ if("${_wxz_motioncore_target}" STREQUAL "")
     message(FATAL_ERROR "MotionCore target not found (expected MotionCore or MotionCore::MotionCore)")
 endif()
 
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
-
 # Third-party dependency root
 #
 # In the wxz_robot workspace layout, the heavy binary dependencies live in the workspace root
@@ -94,41 +92,6 @@ option(WXZ_WORKSTATION_BT_FETCHCONTENT "Fetch BehaviorTree.CPP v3 via FetchConte
 set(WXZ_WORKSTATION_SDK_ROOT "${WXZ_WORKSTATION_DEPS_ROOT}/CGXi_Robot_SDK")
 set(WXZ_WORKSTATION_SDK_INCLUDE "${WXZ_WORKSTATION_SDK_ROOT}/include")
 set(WXZ_WORKSTATION_SDK_LIBDIR "${WXZ_WORKSTATION_SDK_ROOT}/libs")
-
-set(_wxz_unpack_dir "${CMAKE_CURRENT_BINARY_DIR}/sdk_unpacked")
-set(_wxz_unpack_script "${CMAKE_CURRENT_LIST_DIR}/cmake/unpack_padded_elf.py")
-
-function(_wxz_is_elf_at_start path out_var)
-    if(NOT EXISTS "${path}")
-        set(${out_var} FALSE PARENT_SCOPE)
-        return()
-    endif()
-    file(READ "${path}" _wxz_magic_hex OFFSET 0 LIMIT 4 HEX)
-    if(_wxz_magic_hex STREQUAL "7f454c46")
-        set(${out_var} TRUE PARENT_SCOPE)
-    else()
-        set(${out_var} FALSE PARENT_SCOPE)
-    endif()
-endfunction()
-
-function(wxz_workstation_pick_or_unpack in_lib out_var)
-    get_filename_component(_name "${in_lib}" NAME)
-    _wxz_is_elf_at_start("${in_lib}" _is_elf)
-    if(_is_elf)
-        set(${out_var} "${in_lib}" PARENT_SCOPE)
-        return()
-    endif()
-
-    set(_out "${_wxz_unpack_dir}/${_name}")
-    add_custom_command(
-        OUTPUT "${_out}"
-        COMMAND "${Python3_EXECUTABLE}" "${_wxz_unpack_script}" "${in_lib}" "${_out}"
-        DEPENDS "${in_lib}" "${_wxz_unpack_script}"
-        COMMENT "Unpacking padded ELF: ${_name}"
-        VERBATIM
-    )
-    set(${out_var} "${_out}" PARENT_SCOPE)
-endfunction()
 
 add_executable(workstation_arm_control_service
     services/arm_control/src/main.cpp
@@ -174,31 +137,16 @@ if(WXZ_ARM_LINK_SDK)
         ${WXZ_WORKSTATION_SDK_LIBDIR}/libLogStorageDll.so
     )
 
-    set(_wxz_arm_sdk_runtime_libs)
-    set(_wxz_arm_sdk_unpacked_outputs)
     foreach(_in IN LISTS _wxz_arm_sdk_inputs)
         if(NOT EXISTS "${_in}")
             message(FATAL_ERROR "Workstation SDK library not found: ${_in}")
         endif()
-        wxz_workstation_pick_or_unpack("${_in}" _picked)
-        if(NOT _picked OR NOT EXISTS "${_picked}")
-            message(FATAL_ERROR "Workstation SDK library prepare failed (pick/unpack returned an invalid path). Input: ${_in}")
-        endif()
-        list(APPEND _wxz_arm_sdk_runtime_libs "${_picked}")
-        if(_picked MATCHES "^${_wxz_unpack_dir}/")
-            list(APPEND _wxz_arm_sdk_unpacked_outputs "${_picked}")
-        endif()
     endforeach()
 
-    if(_wxz_arm_sdk_unpacked_outputs)
-        add_custom_target(workstation_sdk_unpacked DEPENDS ${_wxz_arm_sdk_unpacked_outputs})
-        add_dependencies(workstation_arm_control_service workstation_sdk_unpacked)
-    endif()
-
-    target_link_libraries(workstation_arm_control_service PRIVATE ${_wxz_arm_sdk_runtime_libs})
+    target_link_libraries(workstation_arm_control_service PRIVATE ${_wxz_arm_sdk_inputs})
 
     set_target_properties(workstation_arm_control_service PROPERTIES
-        BUILD_RPATH "${WXZ_WORKSTATION_SDK_LIBDIR};${_wxz_unpack_dir}"
+        BUILD_RPATH "${WXZ_WORKSTATION_SDK_LIBDIR}"
     )
 endif()
 
