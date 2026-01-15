@@ -1,6 +1,7 @@
 # Build & install outputs
 build/
 build_local/
+build_*/
 
 # CMake
 CMakeFiles/

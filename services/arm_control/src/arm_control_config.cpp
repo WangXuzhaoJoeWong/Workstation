@@ -39,7 +39,7 @@ ArmControlConfig load_arm_control_config_from_env() {
 
     cfg.log_level = wxz::core::parse_log_level(Env::get_str("WXZ_LOG_LEVEL", "info"));
 
-    // Keep current behavior: hard-coded metrics scope.
+    // 保持当前行为：metrics scope 固定写死。
     cfg.metrics_scope = "workstation_arm_control_service";
 
     return cfg;

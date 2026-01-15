@@ -13,8 +13,8 @@ std::string json_to_scalar(const Json& v);
 
 std::string json_to_csv(const Json& arr);
 
-// Convert JSON-RPC params object into raw kv string, e.g. "op=...;k=v;arr=1,2".
-// Requires params is object and params["op"] is string.
+// 将 JSON-RPC 的 params 对象转换为原始 kv 字符串，例如："op=...;k=v;arr=1,2"。
+// 要求：params 为 object，且 params["op"] 为 string。
 std::optional<std::string> build_raw_kv_from_params(const Json& params);
 
 } // namespace wxz::workstation::arm_control::internal

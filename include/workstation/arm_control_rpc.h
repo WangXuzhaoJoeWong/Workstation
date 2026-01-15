@@ -70,7 +70,7 @@ inline void from_json(const nlohmann::json& j, CommandReply& r) {
     if (it != j.end()) r.kv = *it;
 }
 
-// --- Convenience helpers (typed client calls) ---
+// --- 便捷辅助函数（类型化 client 调用） ---
 
 inline wxz::framework::typed_rpc::Result<PingReply> ping(wxz::framework::RpcServiceClient& cli,
                                                         std::chrono::milliseconds timeout) {

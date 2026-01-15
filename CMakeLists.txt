@@ -119,7 +119,20 @@ endif()
 
 find_package(Threads REQUIRED)
 
-option(WXZ_WORKSTATION_USE_LOCAL_MOTIONCORE "(Discouraged) Use sibling MotionCore source tree (../MotionCore) instead of find_package(MotionCore)" OFF)
+set(_wxz_local_motioncore_src_dir "${CMAKE_CURRENT_LIST_DIR}/../MotionCore")
+set(_wxz_has_local_motioncore OFF)
+if(EXISTS "${_wxz_local_motioncore_src_dir}/CMakeLists.txt")
+    set(_wxz_has_local_motioncore ON)
+endif()
+
+# In the wxz_robot workspace layout, prefer the sibling MotionCore source tree by default.
+# This ensures Workstation services always build against the latest MotionCore implementation
+# (instead of accidentally picking up an older install via find_package()).
+set(_wxz_use_local_motioncore_default OFF)
+if(_wxz_has_local_motioncore)
+    set(_wxz_use_local_motioncore_default ON)
+endif()
+option(WXZ_WORKSTATION_USE_LOCAL_MOTIONCORE "Use sibling MotionCore source tree (../MotionCore) instead of find_package(MotionCore)" ${_wxz_use_local_motioncore_default})
 
 
 # Workstation is an independent project.
@@ -148,23 +161,17 @@ if(NOT DEFINED MotionCore_DIR OR "${MotionCore_DIR}" STREQUAL "")
     set(CMAKE_PREFIX_PATH "${_wxz_prefix_path}")
 endif()
 
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    # Standalone build: require MotionCore package (no implicit source-tree coupling).
-    find_package(MotionCore CONFIG REQUIRED)
-    if(TARGET MotionCore::MotionCore)
-        set(_wxz_motioncore_target MotionCore::MotionCore)
-    elseif(TARGET MotionCore)
-        set(_wxz_motioncore_target MotionCore)
-    endif()
-elseif(TARGET MotionCore::MotionCore)
-    # Subproject build (discouraged): accept existing target.
+if(TARGET MotionCore::MotionCore)
+    # Parent project already provided MotionCore.
     set(_wxz_motioncore_target MotionCore::MotionCore)
 elseif(TARGET MotionCore)
     set(_wxz_motioncore_target MotionCore)
-elseif(WXZ_WORKSTATION_USE_LOCAL_MOTIONCORE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../MotionCore/CMakeLists.txt")
-    add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../MotionCore" "${CMAKE_BINARY_DIR}/_motioncore")
+elseif(WXZ_WORKSTATION_USE_LOCAL_MOTIONCORE AND _wxz_has_local_motioncore)
+    # Build against the sibling MotionCore source tree to guarantee "latest".
+    add_subdirectory("${_wxz_local_motioncore_src_dir}" "${CMAKE_BINARY_DIR}/_motioncore")
     set(_wxz_motioncore_target MotionCore)
 else()
+    # Fallback: resolve MotionCore via package config.
     find_package(MotionCore CONFIG REQUIRED)
     if(TARGET MotionCore::MotionCore)
         set(_wxz_motioncore_target MotionCore::MotionCore)

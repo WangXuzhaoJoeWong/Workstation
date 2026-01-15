@@ -20,7 +20,7 @@ struct ArmControlConfig {
     std::string dto_source{"workstation_arm_control_service"};
     std::size_t dto_max_payload{8192};
 
-    // NodeBase / health/fault
+    // NodeBase / 健康检查 / 故障
     std::string capability_topic{"capability/status"};
     std::string fault_status_topic{"fault/status"};
     std::string fault_action_topic{"fault/action"};
@@ -33,16 +33,16 @@ struct ArmControlConfig {
     std::size_t queue_max{64};
     std::string sw_version{"dev"};
 
-    // RPC control plane
+    // RPC 控制面
     int rpc_enable{0};
     std::string rpc_req_topic{"/svc/arm_control/rpc/request"};
     std::string rpc_rep_topic{"/svc/arm_control/rpc/reply"};
     std::string rpc_service_name{"workstation_arm_control_service"};
 
-    // Observability
+    // 可观测性
     LogLevel log_level{LogLevel::Info};
 
-    // Metrics scope used by subscriptions
+    // 订阅端使用的 metrics scope
     std::string metrics_scope{"workstation_arm_control_service"};
 };
 

@@ -57,7 +57,7 @@ static std::unique_ptr<MetricsExportRuntime> maybe_start_metrics_export(wxz::cor
     auto rt = std::make_unique<MetricsExportRuntime>();
     wxz::core::set_metrics_sink(&rt->sink);
 
-    // Optional: HTTP /metrics endpoint
+    // 可选：启用 HTTP /metrics 端点
     {
         const int http_enable = wxz::core::getenv_int("WXZ_METRICS_HTTP_ENABLE", 0);
         if (http_enable) {

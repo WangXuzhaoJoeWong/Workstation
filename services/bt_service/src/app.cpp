@@ -57,7 +57,7 @@ static std::unique_ptr<MetricsExportRuntime> maybe_start_metrics_export(wxz::cor
     auto rt = std::make_unique<MetricsExportRuntime>();
     wxz::core::set_metrics_sink(&rt->sink);
 
-    // Optional: HTTP /metrics endpoint
+    // 可选：启用 HTTP /metrics 端点
     {
         const int http_enable = wxz::core::getenv_int("WXZ_METRICS_HTTP_ENABLE", 0);
         if (http_enable) {
@@ -130,7 +130,7 @@ static std::unique_ptr<wxz::core::FaultRecoveryExecutor> maybe_start_fault_recov
         auto flush = [&] {
             auto s = cur;
             cur.clear();
-            // trim spaces
+                // 去掉首尾空白
             while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) s.erase(s.begin());
             while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) s.pop_back();
             if (s.empty()) return;
