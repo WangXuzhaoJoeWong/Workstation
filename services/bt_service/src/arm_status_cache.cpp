@@ -1,22 +1,25 @@
-#include "wxz_workstation/bt_service/arm_status_cache.h"
+#include "arm_status_cache.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <utility>
-#include <vector>
 
 #include "dto/event_dto.h"
 #include "dto/event_dto_cdr.h"
+#include "byte_buffer_pool.h"
 #include "fastdds_channel.h"
-#include "wxz_workstation/bt_service/arm_types.h"
+#include "strand.h"
+#include "arm_types.h"
 
 namespace wxz::workstation::bt_service {
 
-void install_arm_status_cache_updater(wxz::core::FastddsChannel& arm_status_dto_sub, ArmRespCache& arm_cache) {
-    arm_status_dto_sub.subscribe([&](const std::uint8_t* data, std::size_t size) {
-        std::vector<std::uint8_t> buf(data, data + size);
+void install_arm_status_cache_updater(wxz::core::FastddsChannel& arm_status_dto_sub,
+                                     wxz::core::ByteBufferPool& ingress_pool,
+                                     wxz::core::Strand& ingress_strand,
+                                     ArmRespCache& arm_cache) {
+    arm_status_dto_sub.subscribe_leased_on(ingress_pool, ingress_strand, [&](wxz::core::ByteBufferLease&& msg) {
         ::EventDTO dto;
-        if (!wxz::dto::decode_event_dto_cdr(buf, dto)) return;
+        if (!wxz::dto::decode_event_dto_cdr(msg.data(), msg.size(), dto)) return;
         auto kv = EventDTOUtil::parsePayloadKv(dto.payload);
 
         if (!kv.count("id")) kv["id"] = dto.event_id;

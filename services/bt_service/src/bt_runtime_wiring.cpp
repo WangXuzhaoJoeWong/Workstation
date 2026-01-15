@@ -1,11 +1,11 @@
-#include "wxz_workstation/bt_service/bt_runtime_wiring.h"
+#include "bt_runtime_wiring.h"
 
 #include <memory>
 
 #include <behaviortree_cpp_v3/bt_factory.h>
 
-#include "wxz_workstation/bt_service/app_config.h"
-#include "wxz_workstation/bt_service/bt_tree_runner.h"
+#include "app_config.h"
+#include "bt_tree_runner.h"
 
 namespace wxz::workstation::bt_service {
 

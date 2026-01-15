@@ -1,37 +1,48 @@
 <?xml version="1.0"?>
-<!--
-  Minimal BehaviorTree template for workstation_bt_service.
-
-  Notes:
-    - workstation_bt_service polls the XML file and hot-reloads when file content changes.
-    - If the new XML is invalid, it will log an error and keep running with the last valid tree.
-
-  Supported custom nodes (arm_control-related) are implemented/registered in:
-    - Workstation/services/bt_service/src/arm_nodes.cpp
--->
-<root BTCPP_format="4" main_tree_to_execute="MainTree">
-  <BehaviorTree ID="MainTree">
-    <Sequence name="main">
-      <!-- Power on / enable (aliases: ArmPowerOn / PowerOn / power_on_enable / InitializeArm) -->
-      <PowerOn/>
-
-      <!-- Optional: read mode into blackboard -->
-      <GetRobotMode mode="{mode}"/>
-
-      <!-- MoveJ example (aliases: ArmMoveJ / MoveJ / moveJ / moveJoint) -->
-      <MoveJ jointpos="0,0,0,0,0,0" speed="30"/>
-
-      <!-- MoveL example (aliases: ArmMoveL / MoveL / moveL) -->
-      <MoveL pose="0,0,0,0,0,0" jointpos="0,0,0,0,0,0" speed="30" acc="30" jerk="60"/>
-
-      <!-- Optional: download a path file (aliases: ArmPathDownload / path_download) -->
-      <!--
-      <ArmPathDownload file="/etc/workstation/path.txt" index="1" moveType="1" maxPoints="10000"/>
-      -->
-
-      <!-- Optional: query joint actual position into blackboard -->
-      <GetJointActualPos jointpos="{jointpos}"/>
-    </Sequence>
-
-  </BehaviorTree>
+<root main_tree_to_execute="BehaviorTree">
+    <!-- ////////// -->
+    <BehaviorTree ID="BehaviorTree">
+        <Sequence name="ReadActualJointpos">
+            <Action ID="InitializeArm"/>
+            <Action ID="IsPowerOn" timeout_ms="5000"/>
+            <Sequence>
+                <Action ID="GetJointActualPos" jointpos="{jointpos}" timeout_ms="5000"/>
+                <Action ID="ArmMoveL" acc="800" jerk="1600" jointpos="{jointpos}" pose="-200,615.13,405.89,0,3.1415926,0" speed="1000"/>
+                <Action ID="GetJointActualPos" jointpos="{jointpos}" timeout_ms="5000"/>
+                <Action ID="ArmMoveL" acc="800" jerk="1600" jointpos="{jointpos}" pose="-200,615.13,805.89,0,3.1415926,0" speed="1000"/>
+                <Action ID="GetJointActualPos" jointpos="{jointpos}" timeout_ms="5000"/>
+                <Action ID="ArmMoveL" acc="800" jerk="1600" jointpos="{jointpos}" pose="400,615.13,805.89,0,3.1415926,0" speed="1000"/>
+                <Action ID="GetJointActualPos" jointpos="{jointpos}" timeout_ms="5000"/>
+                <Action ID="ArmMoveL" acc="800" jerk="1600" jointpos="{jointpos}" pose="400,615.13,405.89,0,3.1415926,0" speed="1000"/>
+            </Sequence>
+            <Sequence>
+                <Action ID="GetJointActualPos" jointpos="{jointpos}" timeout_ms="5000"/>
+                <Action ID="ArmMoveL" acc="800" jerk="1600" jointpos="{jointpos}" pose="400,615.13,805.89,0,3.1415926,0" speed="1000"/>
+                <Action ID="GetJointActualPos" jointpos="{jointpos}" timeout_ms="5000"/>
+                <Action ID="ArmMoveL" acc="800" jerk="1600" jointpos="{jointpos}" pose="-200,615.13,805.89,0,3.1415926,0" speed="1000"/>
+                <Action ID="GetJointActualPos" jointpos="{jointpos}" timeout_ms="5000"/>
+                <Action ID="ArmMoveL" acc="800" jerk="1600" jointpos="{jointpos}" pose="-200,615.13,405.89,0,3.1415926,0" speed="1000"/>
+            </Sequence>
+        </Sequence>
+    </BehaviorTree>
+    <!-- ////////// -->
+    <TreeNodesModel>
+        <Action ID="ArmMoveL">
+            <input_port name="acc" type="std::string"/>
+            <input_port name="jerk" type="std::string"/>
+            <input_port name="jointpos" type="std::string"/>
+            <input_port name="pose" type="std::string"/>
+            <input_port name="speed" type="std::string"/>
+        </Action>
+        <Action ID="GetJointActualPos">
+            <output_port name="jointpos" type="std::string"/>
+            <input_port name="timeout_ms" type="std::string"/>
+        </Action>
+        <Action ID="InitializeArm"/>
+        <Action ID="IsPowerOn">
+            <input_port name="timeout_ms" type="std::string"/>
+        </Action>
+        <Action ID="PowerOn"/>
+    </TreeNodesModel>
+    <!-- ////////// -->
 </root>

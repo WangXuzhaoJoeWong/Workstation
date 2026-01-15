@@ -1,9 +1,11 @@
-#include "wxz_workstation/arm_control/internal/arm_control_internal.h"
+#include "internal/arm_control_internal.h"
 
+#include <cmath>
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <sstream>
 #include <vector>
 
 #include "service_common.h"
@@ -11,6 +13,41 @@
 #include "dto/event_dto_cdr.h"
 
 namespace wxz::workstation::arm_control::internal {
+
+namespace {
+
+const char* cr_result_name(CRresult r) {
+    switch (r) {
+        case success: return "success";
+        case error: return "error";
+        case thread_running: return "thread_running";
+        case operate_timeout: return "operate_timeout";
+        case result_invalid: return "result_invalid";
+        case out_of_range: return "out_of_range";
+        case mutex_invalid: return "mutex_invalid";
+        case para_error: return "para_error";
+        case no_result: return "no_result";
+        case no_assignTCPindex: return "no_assignTCPindex";
+        case no_handle: return "no_handle";
+        case handle_repeat: return "handle_repeat";
+        case repeat_name: return "repeat_name";
+        case delete_invalid: return "delete_invalid";
+        case set_bit_reg_invalid: return "set_bit_reg_invalid";
+        case repeat_id: return "repeat_id";
+        case file_encryption: return "file_encryption";
+        case robotmode_error: return "robotmode_error";
+        case move_error: return "move_error";
+        default: return "unknown";
+    }
+}
+
+bool should_disconnect_on_error(CRresult r) {
+    // 经验规则：仅在疑似传输/会话问题时断开连接。
+    // 运动/状态类错误尽量保持连接，避免反复重连刷屏。
+    return (r == operate_timeout || r == thread_running);
+}
+
+} // namespace
 
 std::string Env::get_str(const char* key, const std::string& def) {
     return wxz::core::getenv_str(key, def);
@@ -104,6 +141,14 @@ bool CmdQueue::push(Cmd cmd) {
     return true;
 }
 
+std::optional<Cmd> CmdQueue::try_pop() {
+    std::lock_guard<std::mutex> lock(mu_);
+    if (q_.empty()) return std::nullopt;
+    Cmd cmd = std::move(q_.front());
+    q_.pop();
+    return cmd;
+}
+
 std::optional<Cmd> CmdQueue::pop_for(std::chrono::milliseconds timeout, const std::atomic<bool>& running) {
     return pop_for(timeout, [&] { return running.load(); });
 }
@@ -155,45 +200,18 @@ wxz::core::ChannelQoS StatusPublisher::default_qos() {
     return qos;
 }
 
-bool load_sdk(SdkApi& api, const Logger& logger) {
-#if defined(WXZ_ARM_LINK_SDK) && (WXZ_ARM_LINK_SDK)
-    (void)logger;
-    api.handle = nullptr;
-    api.cr_create_robot = &cr_create_robot;
-    api.cr_destroy_robot = &cr_destroy_robot;
-    api.cr_move_line = &cr_move_line;
-    api.cr_move_joint = &cr_move_joint;
-    api.cr_get_robotMode = &cr_get_robotMode;
-    api.cr_get_robotMoveStatus = &cr_get_robotMoveStatus;
-    api.cr_poweron = &cr_poweron;
-    api.cr_enable = &cr_enable;
-    api.cr_stop = &cr_stop;
-    api.cr_FaultReset = &cr_FaultReset;
-    api.cr_set_configDigitalOut = &cr_set_configDigitalOut;
-    api.cr_get_configDigitalIn = &cr_get_configDigitalIn;
-    api.cr_path_file2pathData = &cr_path_file2pathData;
-    api.cr_path_download = &cr_path_download;
-    api.cr_path_action = &cr_path_action;
-    api.cr_path_currentRunStatus_get = &cr_path_currentRunStatus_get;
-    api.cr_path_all_index_get = &cr_path_all_index_get;
-    api.cr_get_jointActualPos = &cr_get_jointActualPos;
-    return true;
-#else
-#error "Direct-link SDK required; build with -DWXZ_ARM_LINK_SDK=ON"
-#endif
-}
-
-ArmSdkClient::ArmSdkClient(ArmConn conn, const SdkApi* api) : conn_(std::move(conn)), api_(api) {}
+ArmSdkClient::ArmSdkClient(ArmConn conn) : conn_(std::move(conn)) {}
 
 ArmSdkClient::~ArmSdkClient() {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     disconnect();
 }
 
 CRresult ArmSdkClient::connect() {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     if (connected_) return success;
     RobotHandle handle{};
-    if (!api_ || !api_->cr_create_robot) return CR_FAILED;
-    const CRresult r = api_->cr_create_robot(&handle, conn_.ip.c_str(), conn_.port, conn_.passwd.c_str());
+    const CRresult r = ::cr_create_robot(&handle, conn_.ip.c_str(), conn_.port, conn_.passwd.c_str());
     if (r == success) {
         handle_ = handle;
         connected_ = true;
@@ -202,13 +220,15 @@ CRresult ArmSdkClient::connect() {
 }
 
 void ArmSdkClient::disconnect() {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     if (!connected_) return;
-    if (api_ && api_->cr_destroy_robot) (void)api_->cr_destroy_robot(handle_);
+    (void)::cr_destroy_robot(handle_);
     connected_ = false;
     handle_ = 0;
 }
 
 CRresult ArmSdkClient::ensure_connected() {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     CRresult r = connect();
     if (r == success) return r;
     disconnect();
@@ -217,11 +237,11 @@ CRresult ArmSdkClient::ensure_connected() {
 }
 
 std::optional<bool> ArmSdkClient::read_config_di(int index) {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     const CRresult cr = ensure_connected();
     if (cr != success) return std::nullopt;
-    if (!api_ || !api_->cr_get_configDigitalIn) return std::nullopt;
     BOOL val = FALSE;
-    const CRresult r = api_->cr_get_configDigitalIn(handle_, index, &val);
+    const CRresult r = ::cr_get_configDigitalIn(handle_, index, &val);
     if (r != success) {
         disconnect();
         return std::nullopt;
@@ -230,11 +250,11 @@ std::optional<bool> ArmSdkClient::read_config_di(int index) {
 }
 
 std::optional<PathRunMsg> ArmSdkClient::get_path_run_status() {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     const CRresult cr = ensure_connected();
     if (cr != success) return std::nullopt;
-    if (!api_ || !api_->cr_path_currentRunStatus_get) return std::nullopt;
     PathRunMsg msg{};
-    const CRresult r = api_->cr_path_currentRunStatus_get(handle_, &msg);
+    const CRresult r = ::cr_path_currentRunStatus_get(handle_, &msg);
     if (r != success) {
         disconnect();
         return std::nullopt;
@@ -269,15 +289,15 @@ bool ArmSdkClient::IsStopSignal() {
 }
 
 CRresult ArmSdkClient::GetJointActualPosDeg(std::array<double, 6>& out_deg) {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     const CRresult cr = ensure_connected();
     if (cr != success) return cr;
-    if (!api_ || !api_->cr_get_jointActualPos) return CR_FAILED;
 
 #if defined(ROB_AXIS_NUM) && (ROB_AXIS_NUM < 6)
     return CR_FAILED;
 #else
     double pos[ROB_AXIS_NUM]{};
-    const CRresult r = api_->cr_get_jointActualPos(handle_, pos);
+    const CRresult r = ::cr_get_jointActualPos(handle_, pos);
     if (r != success) {
         disconnect();
         return r;
@@ -290,12 +310,12 @@ CRresult ArmSdkClient::GetJointActualPosDeg(std::array<double, 6>& out_deg) {
 bool ArmSdkClient::IsTrajectoryComplete() {
     const auto st = get_path_run_status();
     if (!st) return false;
-    // SDK: pathrunstatus 1=running; 0 or 10001=stopped.
+    // SDK：pathrunstatus 1=running；0 或 10001=stopped。
     return st->pathrunstatus != 1;
 }
 
 bool ArmSdkClient::IsAllTrajectoriesComplete() {
-    // Current SDK reports the current path execution state; controller executes one at a time.
+    // 当前 SDK 只上报“当前路径”的执行状态；控制器一次只执行一条路径。
     return IsTrajectoryComplete();
 }
 
@@ -315,13 +335,13 @@ CRresult ArmSdkClient::WaitForStart(std::chrono::milliseconds timeout, Logger co
 }
 
 CRresult ArmSdkClient::ExecuteTrajectory(std::chrono::milliseconds timeout, Logger const& logger) {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     const CRresult cr = ensure_connected();
     if (cr != success) return cr;
-    if (!api_ || !api_->cr_path_action) return CR_FAILED;
 
     const int path_index = Env::get_int("WXZ_ARM_PATH_INDEX", 0);
     logger.log(LogLevel::Info, std::string("ExecuteTrajectory path_index=") + std::to_string(path_index));
-    CRresult r = api_->cr_path_action(handle_, path_index, 1 /*start*/);
+    CRresult r = ::cr_path_action(handle_, path_index, 1 /*start*/);
     if (r != success) {
         disconnect();
         return r;
@@ -330,28 +350,29 @@ CRresult ArmSdkClient::ExecuteTrajectory(std::chrono::milliseconds timeout, Logg
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     while (std::chrono::steady_clock::now() < deadline) {
         if (IsStopSignal()) {
-            (void)api_->cr_path_action(handle_, path_index, 0 /*stop*/);
+            (void)::cr_path_action(handle_, path_index, 0 /*stop*/);
             return CR_FAILED;
         }
         if (IsTrajectoryComplete()) return success;
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
-    (void)api_->cr_path_action(handle_, path_index, 0 /*stop*/);
+    (void)::cr_path_action(handle_, path_index, 0 /*stop*/);
     return CR_FAILED;
 }
 
 CRresult ArmSdkClient::EmergencyStop(Logger const& logger) {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     (void)logger;
     const CRresult cr = ensure_connected();
     if (cr != success) return cr;
-    if (!api_ || !api_->cr_stop) return CR_FAILED;
-    const CRresult r = api_->cr_stop(handle_);
+    const CRresult r = ::cr_stop(handle_);
     if (r != success) disconnect();
     return r;
 }
 
 CRresult ArmSdkClient::ResetSystem(Logger const& logger) {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     (void)logger;
     return fault_reset();
 }
@@ -361,37 +382,132 @@ CRresult ArmSdkClient::moveL(const std::array<double, 6>& jointpos,
                             double speed,
                             double acc,
                             double jerk) {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     const CRresult cr = ensure_connected();
     if (cr != success) return cr;
+
+    // 最后一层安全检查（不完全依赖上游校验）。
+    auto is_finite6 = [](const std::array<double, 6>& v) {
+        for (double x : v) {
+            if (!std::isfinite(x)) return false;
+        }
+        return true;
+    };
+    if (!is_finite6(jointpos) || !is_finite6(pose) || !std::isfinite(speed) || !std::isfinite(acc) || !std::isfinite(jerk)) {
+        std::cerr << "moveL rejected: non-finite inputs" << "\n";
+        disconnect();
+        return CR_FAILED;
+    }
+
+    // 单位约定：pose xyz 为 mm，pose rpy 为 rad；jointpos 为 rad；speed 为 mm/s。
+    // 防止常见且灾难性的错误：把“角度”当成“弧度”传入。
+    constexpr double kPi = 3.14159265358979323846;
+    constexpr double kMaxAbsAngleRadSuspicious = 10.0; // 约 572 度
+    for (int i = 3; i < 6; ++i) {
+        if (std::fabs(pose[static_cast<std::size_t>(i)]) > kMaxAbsAngleRadSuspicious) {
+            // 默认拒绝；高级用户可通过环境变量显式放行。
+            if (!Env::get_bool("WXZ_ARM_ALLOW_LARGE_ANGLE", false)) {
+                std::cerr << "moveL rejected: pose angle(rad) suspicious (>" << kMaxAbsAngleRadSuspicious
+                          << "), set WXZ_ARM_ALLOW_LARGE_ANGLE=1 to override" << "\n";
+                disconnect();
+                return CR_FAILED;
+            }
+            break;
+        }
+    }
+    for (int i = 0; i < 6; ++i) {
+        if (std::fabs(jointpos[static_cast<std::size_t>(i)]) > kMaxAbsAngleRadSuspicious) {
+            if (!Env::get_bool("WXZ_ARM_ALLOW_LARGE_JOINT", false)) {
+                std::cerr << "moveL rejected: jointpos(rad) suspicious (>" << kMaxAbsAngleRadSuspicious
+                          << "), set WXZ_ARM_ALLOW_LARGE_JOINT=1 to override" << "\n";
+                disconnect();
+                return CR_FAILED;
+            }
+            break;
+        }
+    }
+
+    if (speed <= 0.0 || speed > 3000.0) {
+        std::cerr << "moveL rejected: speed out of range: " << speed << "\n";
+        disconnect();
+        return CR_FAILED;
+    }
+    if (acc < 0.0 || acc > 20000.0 || jerk < 0.0 || jerk > 20000.0) {
+        std::cerr << "moveL rejected: acc/jerk out of range: acc=" << acc << " jerk=" << jerk << "\n";
+        disconnect();
+        return CR_FAILED;
+    }
 
     PointControlPara p{};
     for (int i = 0; i < ROB_AXIS_NUM; ++i) {
         const std::size_t idx = static_cast<std::size_t>(i);
         const bool is_angle = (i >= 3);
-        p.pose[idx] = is_angle ? (pose[idx] * 180.0 / 3.14159265358979323846) : pose[idx];
-        p.jointpos[idx] = jointpos[idx] * 180.0 / 3.14159265358979323846;
+        p.pose[idx] = is_angle ? (pose[idx] * 180.0 / kPi) : pose[idx];
+        p.jointpos[idx] = jointpos[idx] * 180.0 / kPi;
         p.tcpOffset[idx] = 0;
         p.coordinatePose[idx] = 0;
         p.speed[idx] = speed;
         p.acc[idx] = acc;
-        p.jerk[idx] = jerk;
+        // 注意：SDK 将 jerk 标记为保留参数；保持为 0 可避免
+        // 固件因为“保留字段非零”而拒绝（常见 result_invalid 诱因）。
+        (void)jerk;
+        p.jerk[idx] = 0;
     }
     p.tcpID = -1;
     p.coordinateType = baseCoordinate;
     p.pointTransType = pointTransStop;
-    p.pointTransRadius = 30;
+    // pointTransRadius 同样被标记为保留字段；stop 场景保持为 0。
+    p.pointTransRadius = 0;
     p.poseTranType = poseTranMoveToTargetPose;
     p.motiontriggerMode = MovetriggerbyOnlyRpc;
 
-    if (!api_ || !api_->cr_move_line) return CR_FAILED;
-    const CRresult r = api_->cr_move_line(handle_, p, TRUE);
+    // 可选 dry-run：仅打印计算后的参数，不实际下发运动。
+    if (Env::get_bool("WXZ_ARM_DRY_RUN", false)) {
+        std::ostringstream os;
+        os.setf(std::ios::fixed);
+        os << "moveL dry_run: "
+           << "pose_mm_rad=[" << pose[0] << "," << pose[1] << "," << pose[2] << "," << pose[3] << "," << pose[4]
+           << "," << pose[5] << "] "
+           << "pose_deg=[" << p.pose[3] << "," << p.pose[4] << "," << p.pose[5] << "] "
+           << "joint_rad=[" << jointpos[0] << "," << jointpos[1] << "," << jointpos[2] << "," << jointpos[3] << ","
+           << jointpos[4] << "," << jointpos[5] << "] "
+           << "joint_deg=[" << p.jointpos[0] << "," << p.jointpos[1] << "," << p.jointpos[2] << "," << p.jointpos[3]
+           << "," << p.jointpos[4] << "," << p.jointpos[5] << "] "
+           << "speed=" << speed << " acc=" << acc << " jerk=" << jerk;
+        std::cerr << os.str() << "\n";
+        return success;
+    }
+
+    const CRresult r = ::cr_move_line(handle_, p, TRUE);
     if (r != success) {
-        disconnect();
+        // 增补诊断信息，便于区分：参数/单位问题 vs robot mode 问题 vs 运动状态问题。
+        enum RobotModes mode = Closed;
+        BOOL moving = FALSE;
+        (void)::cr_get_robotMode(handle_, &mode);
+        (void)::cr_get_robotMoveStatus(handle_, &moving);
+        std::cerr << "moveL failed code=" << static_cast<int>(r) << " (" << cr_result_name(r) << ")"
+              << " robotMode=" << static_cast<int>(mode)
+              << " isMoving=" << (moving == TRUE ? 1 : 0)
+              << " speed=" << speed << " acc=" << acc << " jerk_in=" << jerk
+              << " coordinateType=" << static_cast<int>(p.coordinateType)
+              << " tcpID=" << p.tcpID
+              << " pointTransType=" << static_cast<int>(p.pointTransType)
+              << " motiontriggerMode=" << static_cast<int>(p.motiontriggerMode)
+              << " xyz_mm=[" << p.pose[0] << "," << p.pose[1] << "," << p.pose[2] << "]"
+              << " rpy_deg=[" << p.pose[3] << "," << p.pose[4] << "," << p.pose[5] << "]"
+              << " joint_deg=[" << p.jointpos[0] << "," << p.jointpos[1] << "," << p.jointpos[2] << ","
+              << p.jointpos[3] << "," << p.jointpos[4] << "," << p.jointpos[5] << "]"
+              << "\n";
+
+        if (should_disconnect_on_error(r)) {
+            disconnect();
+        }
     }
     return r;
 }
 
 CRresult ArmSdkClient::moveJ(const std::array<double, 6>& jointpos, double speed_rad_per_s) {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     const CRresult cr = ensure_connected();
     if (cr != success) return cr;
 
@@ -405,52 +521,63 @@ CRresult ArmSdkClient::moveJ(const std::array<double, 6>& jointpos, double speed
         p.coordinatePose[idx] = 0;
         p.speed[idx] = speed_deg;
         p.acc[idx] = speed_deg * 3;
-        p.jerk[idx] = speed_deg * 3;
+        // SDK 保留字段；保持为 0 避免 result_invalid。
+        p.jerk[idx] = 0;
     }
     p.tcpID = -1;
     p.coordinateType = jointCoordinate;
     p.pointTransType = pointTransStop;
-    p.pointTransRadius = 30;
+    p.pointTransRadius = 0;
     p.poseTranType = poseTranMoveToTargetPose;
     p.motiontriggerMode = MovetriggerbyOnlyRpc;
 
-    if (!api_ || !api_->cr_move_joint) return CR_FAILED;
-    const CRresult r = api_->cr_move_joint(handle_, p, TRUE);
+    const CRresult r = ::cr_move_joint(handle_, p, TRUE);
     if (r != success) {
-        disconnect();
+        enum RobotModes mode = Closed;
+        BOOL moving = FALSE;
+        (void)::cr_get_robotMode(handle_, &mode);
+        (void)::cr_get_robotMoveStatus(handle_, &moving);
+        std::cerr << "moveJ failed code=" << static_cast<int>(r) << " (" << cr_result_name(r) << ")"
+                  << " robotMode=" << static_cast<int>(mode)
+                  << " isMoving=" << (moving == TRUE ? 1 : 0)
+                  << " speed_rad_per_s=" << speed_rad_per_s
+                  << " coordinateType=" << static_cast<int>(p.coordinateType)
+                  << "\n";
+
+        if (should_disconnect_on_error(r)) {
+            disconnect();
+        }
     }
     return r;
 }
 
 CRresult ArmSdkClient::power_on_enable(Logger const& logger) {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     const CRresult cr = ensure_connected();
     if (cr != success) return cr;
 
     enum RobotModes mode = Closed;
-    if (!api_ || !api_->cr_get_robotMode) return CR_FAILED;
-    CRresult r = api_->cr_get_robotMode(handle_, &mode);
+    CRresult r = ::cr_get_robotMode(handle_, &mode);
     if (r != success) return r;
     logger.log(LogLevel::Debug, std::string("robotMode=") + std::to_string(static_cast<int>(mode)));
 
     if (mode == JointPowerOff) {
-        if (!api_->cr_poweron) return CR_FAILED;
-        r = api_->cr_poweron(handle_);
+        r = ::cr_poweron(handle_);
         if (r != success) return r;
 
         for (int i = 0; i < 40; ++i) {
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            r = api_->cr_get_robotMode(handle_, &mode);
+            r = ::cr_get_robotMode(handle_, &mode);
             if (r != success) return r;
             if (mode == JointIdle) break;
         }
 
-        if (!api_->cr_enable) return CR_FAILED;
-        r = api_->cr_enable(handle_);
+        r = ::cr_enable(handle_);
         if (r != success) return r;
 
         for (int i = 0; i < 40; ++i) {
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
-            r = api_->cr_get_robotMode(handle_, &mode);
+            r = ::cr_get_robotMode(handle_, &mode);
             if (r != success) return r;
             if (mode == ProgramStop) break;
         }
@@ -460,11 +587,11 @@ CRresult ArmSdkClient::power_on_enable(Logger const& logger) {
 }
 
 CRresult ArmSdkClient::get_robot_mode(int& out_mode) {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     const CRresult cr = ensure_connected();
     if (cr != success) return cr;
     enum RobotModes mode = Closed;
-    if (!api_ || !api_->cr_get_robotMode) return CR_FAILED;
-    const CRresult r = api_->cr_get_robotMode(handle_, &mode);
+    const CRresult r = ::cr_get_robotMode(handle_, &mode);
     if (r != success) {
         disconnect();
         return r;
@@ -474,30 +601,31 @@ CRresult ArmSdkClient::get_robot_mode(int& out_mode) {
 }
 
 CRresult ArmSdkClient::fault_reset() {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     const CRresult cr = ensure_connected();
     if (cr != success) return cr;
-    if (!api_ || !api_->cr_FaultReset) return CR_FAILED;
-    return api_->cr_FaultReset(handle_);
+    return ::cr_FaultReset(handle_);
 }
 
 CRresult ArmSdkClient::slow_speed(bool enable) {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     const CRresult cr = ensure_connected();
     if (cr != success) return cr;
-    if (!api_ || !api_->cr_set_configDigitalOut) return CR_FAILED;
-    return api_->cr_set_configDigitalOut(handle_, 0, enable ? TRUE : FALSE);
+    return ::cr_set_configDigitalOut(handle_, 0, enable ? TRUE : FALSE);
 }
 
 CRresult ArmSdkClient::quick_stop(bool enable) {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     const CRresult cr = ensure_connected();
     if (cr != success) return cr;
-    if (!api_ || !api_->cr_set_configDigitalOut) return CR_FAILED;
-    return api_->cr_set_configDigitalOut(handle_, 1, enable ? FALSE : TRUE);
+    return ::cr_set_configDigitalOut(handle_, 1, enable ? FALSE : TRUE);
 }
 
 CRresult ArmSdkClient::path_download(const std::string& file,
                                     int index,
                                     int move_type,
                                     std::size_t max_points) {
+    std::lock_guard<std::recursive_mutex> lock(sdk_mu_);
     const CRresult cr = ensure_connected();
     if (cr != success) return cr;
 
@@ -507,11 +635,7 @@ CRresult ArmSdkClient::path_download(const std::string& file,
     char path_buf[1024];
     std::snprintf(path_buf, sizeof(path_buf), "%s", file.c_str());
 
-    if (!api_ || !api_->cr_path_file2pathData) {
-        delete[] pathData.pathPoints;
-        return CR_FAILED;
-    }
-    CRresult r = api_->cr_path_file2pathData(path_buf, &pathData);
+    CRresult r = ::cr_path_file2pathData(path_buf, &pathData);
     if (r != success) {
         delete[] pathData.pathPoints;
         disconnect();
@@ -522,11 +646,7 @@ CRresult ArmSdkClient::path_download(const std::string& file,
     dl.pathData = pathData;
     dl.pathPara.index = index;
     dl.pathPara.moveType = move_type;
-    if (!api_->cr_path_download) {
-        delete[] pathData.pathPoints;
-        return CR_FAILED;
-    }
-    r = api_->cr_path_download(handle_, dl);
+    r = ::cr_path_download(handle_, dl);
 
     delete[] pathData.pathPoints;
 

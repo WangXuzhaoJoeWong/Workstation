@@ -20,7 +20,7 @@ REPO_ROOT=$(pwd)
 BUILD_DIR=$REPO_ROOT/../build_wxz_robot
 
 cd $BUILD_DIR/Workstation && \
-WXZ_DOMAIN_ID=0 WXZ_BT_XML=$REPO_ROOT/_demo/bt_arm_control_min.xml \
+WXZ_DOMAIN_ID=0 \
 ./workstation_bt_service
 
 ```
@@ -35,7 +35,6 @@ BUILD_DIR=$REPO_ROOT/../build_wxz_robot
 
 cd $BUILD_DIR/Workstation && \
 WXZ_DOMAIN_ID=0 \
-WXZ_BT_XML=$REPO_ROOT/_demo/bt_arm_control_min.xml \
 WXZ_BT_GROOT_PORT=1666 \
 ./workstation_bt_service
 ```
@@ -50,19 +49,23 @@ REPO_ROOT=$(pwd)
 BUILD_DIR=$REPO_ROOT/../build_wxz_robot
 
 cd $BUILD_DIR/Workstation && \
-WXZ_DOMAIN_ID=0 WXZ_BT_XML=$REPO_ROOT/_demo/bt_arm_control_min.xml \
+WXZ_DOMAIN_ID=0 \
 ./workstation_bt_service
 ```
 
-# 如果你要跑“带条件守卫”的版本：
+# 如果要跑“带条件守卫”的版本：
 
 ```bash
 REPO_ROOT=$(pwd)
 BUILD_DIR=$REPO_ROOT/../build_wxz_robot
 
 cd $BUILD_DIR/Workstation && \
-WXZ_DOMAIN_ID=0 WXZ_BT_XML=$REPO_ROOT/_demo/bt_arm_control_helpers_guarded.xml \
+WXZ_DOMAIN_ID=0 \
 ./workstation_bt_service
+
+说明：
+- bt_service 固定从当前工作目录读取 `./bt.xml`（相对路径），不会读取 `WXZ_BT_XML`。
+- 默认情况下构建会在 `Workstation/build` 生成一个 `bt.xml` 软链接指向 `Workstation/resources/bt.xml`。
 
 ```
 

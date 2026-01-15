@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BUILD_DIR="@CMAKE_BINARY_DIR@"
+DEFAULT_PREFIX="$BUILD_DIR"
+
+usage() {
+  cat <<'EOF'
+Usage: ./install.sh [--prefix <dir>] [--] [cmake-install-args...]
+
+Default prefix: <build directory>
+
+Examples:
+  ./install.sh
+  ./install.sh --prefix /opt/workstation
+  ./install.sh --prefix "$HOME/.local/workstation"
+  ./install.sh -- --component runtime
+EOF
+}
+
+prefix="$DEFAULT_PREFIX"
+
+cmake_args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --prefix)
+      prefix="$2"
+      shift 2
+      ;;
+    --)
+      shift
+      cmake_args+=("$@")
+      break
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      cmake_args+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ ! -d "$BUILD_DIR" ]]; then
+  echo "Build directory not found: $BUILD_DIR" >&2
+  exit 1
+fi
+
+echo "+ cmake --install \"$BUILD_DIR\" --prefix \"$prefix\" ${cmake_args[*]}"
+cmake --install "$BUILD_DIR" --prefix "$prefix" "${cmake_args[@]}"

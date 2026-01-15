@@ -1,21 +1,24 @@
-#include "wxz_workstation/bt_service/arm_wiring.h"
+#include "arm_wiring.h"
 
 #include <behaviortree_cpp_v3/bt_factory.h>
 
-#include "wxz_workstation/bt_service/app_config.h"
-#include "wxz_workstation/bt_service/arm_nodes.h"
-#include "wxz_workstation/bt_service/arm_status_cache.h"
-#include "wxz_workstation/bt_service/arm_types.h"
-#include "wxz_workstation/bt_service/dds_channels.h"
+#include "app_config.h"
+#include "arm_nodes.h"
+#include "arm_status_cache.h"
+#include "arm_types.h"
+#include "dds_channels.h"
 
 namespace wxz::workstation::bt_service {
 
 void setup_arm_control_bt(BT::BehaviorTreeFactory& factory,
                           const AppConfig& cfg,
                           DdsChannels& channels,
+                          wxz::core::ByteBufferPool& arm_status_ingress_pool,
+                          wxz::core::Strand& arm_status_ingress_strand,
                           ArmRespCache& arm_cache,
                           TraceContext& trace_ctx) {
-    install_arm_status_cache_updater(*channels.arm_status_dto_sub, arm_cache);
+    install_arm_status_cache_updater(
+        *channels.arm_status_dto_sub, arm_status_ingress_pool, arm_status_ingress_strand, arm_cache);
 
     register_arm_control_nodes(
         factory,

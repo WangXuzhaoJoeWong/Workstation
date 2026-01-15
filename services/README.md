@@ -27,7 +27,7 @@ Workstation/services/
 - 运动规划：`motion_planning`
 
 ## 命名约定
-- 头文件路径：`wxz_workstation/<service_name>/app.h`
+- 头文件路径：`include/app.h`（由该服务的 `target_include_directories()` 指向其 `include/`）
 - 入口文件：`src/main.cpp`（仅负责解析环境/参数、初始化并运行 `App`）
 - 业务实现：`src/app.cpp` + `include/.../app.h`
 - 可执行产物命名与 CMake 目标遵循：`workstation_<service_name>_service`
@@ -43,9 +43,11 @@ Workstation/services/
 ## 头文件引用示例
 
 ```cpp
-#include <wxz_workstation/bt_service/app.h>
-// 或
-#include <wxz_workstation/arm_control/app.h>
+// bt_service 内部引用示例
+#include "app.h"
+
+// arm_control 内部引用示例
+#include "app.h"
 ```
 
 ## CMake 约定（简述）
@@ -59,7 +61,7 @@ Workstation/services/
   - `WXZ_DOMAIN_ID`：DDS Domain ID（默认 11）。
   - Topic：各服务的 command/status（如 `/arm/command`、`/arm/status`、task 相关 topic 等）。
 - 行为树（BT）：
-  - `WXZ_BT_XML`：行为树 XML 路径。
+  - `WXZ_BT_XML`：已废弃（bt_service 固定读取当前工作目录下的 `./bt.xml`）。
   - `WXZ_BT_GROOT` / `WXZ_BT_GROOT_PORT`：是否启用 Groot1 及端口。
   - `WXZ_BT_GROOT_RETRY`：Groot 端口冲突自动重试次数（默认 5，每次端口 +1）。
 - 机械臂控制（ARM）：
@@ -74,7 +76,7 @@ Workstation/services/
 WS=$(pwd)
 
 # 先确保 MotionCore 已安装，并提供给 Workstation 的 find_package 使用
-# 例如：$WS/MotionCore/_install
+# 例如：$WS/MotionCore/build
 
 cd $WS/Workstation
 mkdir -p build
@@ -82,7 +84,7 @@ cd build
 
 cmake .. \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_PREFIX_PATH="$WS/MotionCore/_install" \
+  -DCMAKE_PREFIX_PATH="$WS/MotionCore/build" \
   -DWXZ_WORKSTATION_ENABLE_BT=ON \
   -DWXZ_ARM_LINK_SDK=ON
 

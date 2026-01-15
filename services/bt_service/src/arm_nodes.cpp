@@ -1,4 +1,4 @@
-#include "wxz_workstation/bt_service/arm_nodes.h"
+#include "arm_nodes.h"
 
 #include <cstdint>
 #include <iostream>
@@ -10,7 +10,7 @@
 #include "service_common.h"
 #include "dto/event_dto.h"
 #include "dto/event_dto_cdr.h"
-#include "wxz_workstation/bt_service/arm_types.h"
+#include "arm_types.h"
 
 namespace wxz::workstation::bt_service {
 namespace {
@@ -924,367 +924,369 @@ private:
 
 }  // namespace
 
-void register_arm_control_nodes(BT::BehaviorTreeFactory& factory, const ArmNodeDeps& deps) {
-    const std::uint64_t timeout_ms = deps.arm_timeout_ms;
+void register_arm_control_nodes(BT::BehaviorTreeFactory& factory, ArmNodeDeps deps) {
+    auto deps_sp = std::make_shared<ArmNodeDeps>(std::move(deps));
+    const std::uint64_t timeout_ms = deps_sp->arm_timeout_ms;
 
     factory.registerBuilder<ArmPowerOnAction>(
         "ArmPowerOn",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmPowerOnAction>(name,
                                                       config,
-                                                      deps.arm_cmd_dto_pub,
-                                                      deps.arm_cmd_dto_topic,
-                                                      deps.arm_cmd_dto_schema,
-                                                      deps.system_alert_dto_pub,
-                                                      deps.system_alert_dto_topic,
-                                                      deps.system_alert_dto_schema,
-                                                      deps.dto_source,
-                                                      deps.arm_cache,
+                                                      deps_sp->arm_cmd_dto_pub,
+                                                      deps_sp->arm_cmd_dto_topic,
+                                                      deps_sp->arm_cmd_dto_schema,
+                                                      deps_sp->system_alert_dto_pub,
+                                                      deps_sp->system_alert_dto_topic,
+                                                      deps_sp->system_alert_dto_schema,
+                                                      deps_sp->dto_source,
+                                                      deps_sp->arm_cache,
                                                       timeout_ms,
-                                                      deps.trace_ctx);
+                                                      deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmPowerOnAction>(
         "PowerOn",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmPowerOnAction>(name,
                                                       config,
-                                                      deps.arm_cmd_dto_pub,
-                                                      deps.arm_cmd_dto_topic,
-                                                      deps.arm_cmd_dto_schema,
-                                                      deps.system_alert_dto_pub,
-                                                      deps.system_alert_dto_topic,
-                                                      deps.system_alert_dto_schema,
-                                                      deps.dto_source,
-                                                      deps.arm_cache,
+                                                      deps_sp->arm_cmd_dto_pub,
+                                                      deps_sp->arm_cmd_dto_topic,
+                                                      deps_sp->arm_cmd_dto_schema,
+                                                      deps_sp->system_alert_dto_pub,
+                                                      deps_sp->system_alert_dto_topic,
+                                                      deps_sp->system_alert_dto_schema,
+                                                      deps_sp->dto_source,
+                                                      deps_sp->arm_cache,
                                                       timeout_ms,
-                                                      deps.trace_ctx);
+                                                      deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmPowerOnAction>(
         "power_on_enable",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmPowerOnAction>(name,
                                                       config,
-                                                      deps.arm_cmd_dto_pub,
-                                                      deps.arm_cmd_dto_topic,
-                                                      deps.arm_cmd_dto_schema,
-                                                      deps.system_alert_dto_pub,
-                                                      deps.system_alert_dto_topic,
-                                                      deps.system_alert_dto_schema,
-                                                      deps.dto_source,
-                                                      deps.arm_cache,
+                                                      deps_sp->arm_cmd_dto_pub,
+                                                      deps_sp->arm_cmd_dto_topic,
+                                                      deps_sp->arm_cmd_dto_schema,
+                                                      deps_sp->system_alert_dto_pub,
+                                                      deps_sp->system_alert_dto_topic,
+                                                      deps_sp->system_alert_dto_schema,
+                                                      deps_sp->dto_source,
+                                                      deps_sp->arm_cache,
                                                       timeout_ms,
-                                                      deps.trace_ctx);
+                                                      deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmPowerOnAction>(
         "InitializeArm",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmPowerOnAction>(name,
                                                       config,
-                                                      deps.arm_cmd_dto_pub,
-                                                      deps.arm_cmd_dto_topic,
-                                                      deps.arm_cmd_dto_schema,
-                                                      deps.system_alert_dto_pub,
-                                                      deps.system_alert_dto_topic,
-                                                      deps.system_alert_dto_schema,
-                                                      deps.dto_source,
-                                                      deps.arm_cache,
+                                                      deps_sp->arm_cmd_dto_pub,
+                                                      deps_sp->arm_cmd_dto_topic,
+                                                      deps_sp->arm_cmd_dto_schema,
+                                                      deps_sp->system_alert_dto_pub,
+                                                      deps_sp->system_alert_dto_topic,
+                                                      deps_sp->system_alert_dto_schema,
+                                                      deps_sp->dto_source,
+                                                      deps_sp->arm_cache,
                                                       timeout_ms,
-                                                      deps.trace_ctx);
+                                                      deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmMoveLAction>(
         "ArmMoveL",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmMoveLAction>(name,
                                                     config,
-                                                    deps.arm_cmd_dto_pub,
-                                                    deps.arm_cmd_dto_topic,
-                                                    deps.arm_cmd_dto_schema,
-                                                    deps.system_alert_dto_pub,
-                                                    deps.system_alert_dto_topic,
-                                                    deps.system_alert_dto_schema,
-                                                    deps.dto_source,
-                                                    deps.arm_cache,
+                                                    deps_sp->arm_cmd_dto_pub,
+                                                    deps_sp->arm_cmd_dto_topic,
+                                                    deps_sp->arm_cmd_dto_schema,
+                                                    deps_sp->system_alert_dto_pub,
+                                                    deps_sp->system_alert_dto_topic,
+                                                    deps_sp->system_alert_dto_schema,
+                                                    deps_sp->dto_source,
+                                                    deps_sp->arm_cache,
                                                     timeout_ms,
-                                                    deps.trace_ctx);
+                                                    deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmMoveLAction>(
         "MoveL",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmMoveLAction>(name,
                                                     config,
-                                                    deps.arm_cmd_dto_pub,
-                                                    deps.arm_cmd_dto_topic,
-                                                    deps.arm_cmd_dto_schema,
-                                                    deps.system_alert_dto_pub,
-                                                    deps.system_alert_dto_topic,
-                                                    deps.system_alert_dto_schema,
-                                                    deps.dto_source,
-                                                    deps.arm_cache,
+                                                    deps_sp->arm_cmd_dto_pub,
+                                                    deps_sp->arm_cmd_dto_topic,
+                                                    deps_sp->arm_cmd_dto_schema,
+                                                    deps_sp->system_alert_dto_pub,
+                                                    deps_sp->system_alert_dto_topic,
+                                                    deps_sp->system_alert_dto_schema,
+                                                    deps_sp->dto_source,
+                                                    deps_sp->arm_cache,
                                                     timeout_ms,
-                                                    deps.trace_ctx);
+                                                    deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmMoveLAction>(
         "moveL",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmMoveLAction>(name,
                                                     config,
-                                                    deps.arm_cmd_dto_pub,
-                                                    deps.arm_cmd_dto_topic,
-                                                    deps.arm_cmd_dto_schema,
-                                                    deps.system_alert_dto_pub,
-                                                    deps.system_alert_dto_topic,
-                                                    deps.system_alert_dto_schema,
-                                                    deps.dto_source,
-                                                    deps.arm_cache,
+                                                    deps_sp->arm_cmd_dto_pub,
+                                                    deps_sp->arm_cmd_dto_topic,
+                                                    deps_sp->arm_cmd_dto_schema,
+                                                    deps_sp->system_alert_dto_pub,
+                                                    deps_sp->system_alert_dto_topic,
+                                                    deps_sp->system_alert_dto_schema,
+                                                    deps_sp->dto_source,
+                                                    deps_sp->arm_cache,
                                                     timeout_ms,
-                                                    deps.trace_ctx);
+                                                    deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmMoveJAction>(
         "ArmMoveJ",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmMoveJAction>(name,
                                                     config,
-                                                    deps.arm_cmd_dto_pub,
-                                                    deps.arm_cmd_dto_topic,
-                                                    deps.arm_cmd_dto_schema,
-                                                    deps.arm_cache,
+                                                    deps_sp->arm_cmd_dto_pub,
+                                                    deps_sp->arm_cmd_dto_topic,
+                                                    deps_sp->arm_cmd_dto_schema,
+                                                    deps_sp->arm_cache,
                                                     timeout_ms,
-                                                    deps.trace_ctx);
+                                                    deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmMoveJAction>(
         "MoveJ",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmMoveJAction>(name,
                                                     config,
-                                                    deps.arm_cmd_dto_pub,
-                                                    deps.arm_cmd_dto_topic,
-                                                    deps.arm_cmd_dto_schema,
-                                                    deps.arm_cache,
+                                                    deps_sp->arm_cmd_dto_pub,
+                                                    deps_sp->arm_cmd_dto_topic,
+                                                    deps_sp->arm_cmd_dto_schema,
+                                                    deps_sp->arm_cache,
                                                     timeout_ms,
-                                                    deps.trace_ctx);
+                                                    deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmMoveJAction>(
         "moveJ",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmMoveJAction>(name,
                                                     config,
-                                                    deps.arm_cmd_dto_pub,
-                                                    deps.arm_cmd_dto_topic,
-                                                    deps.arm_cmd_dto_schema,
-                                                    deps.arm_cache,
+                                                    deps_sp->arm_cmd_dto_pub,
+                                                    deps_sp->arm_cmd_dto_topic,
+                                                    deps_sp->arm_cmd_dto_schema,
+                                                    deps_sp->arm_cache,
                                                     timeout_ms,
-                                                    deps.trace_ctx);
+                                                    deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmMoveJAction>(
         "moveJoint",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmMoveJAction>(name,
                                                     config,
-                                                    deps.arm_cmd_dto_pub,
-                                                    deps.arm_cmd_dto_topic,
-                                                    deps.arm_cmd_dto_schema,
-                                                    deps.arm_cache,
+                                                    deps_sp->arm_cmd_dto_pub,
+                                                    deps_sp->arm_cmd_dto_topic,
+                                                    deps_sp->arm_cmd_dto_schema,
+                                                    deps_sp->arm_cache,
                                                     timeout_ms,
-                                                    deps.trace_ctx);
+                                                    deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmPathDownloadAction>(
         "ArmPathDownload",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmPathDownloadAction>(name,
                                                            config,
-                                                           deps.arm_cmd_dto_pub,
-                                                           deps.arm_cmd_dto_topic,
-                                                           deps.arm_cmd_dto_schema,
-                                                           deps.system_alert_dto_pub,
-                                                           deps.system_alert_dto_topic,
-                                                           deps.system_alert_dto_schema,
-                                                           deps.dto_source,
-                                                           deps.arm_cache,
+                                                           deps_sp->arm_cmd_dto_pub,
+                                                           deps_sp->arm_cmd_dto_topic,
+                                                           deps_sp->arm_cmd_dto_schema,
+                                                           deps_sp->system_alert_dto_pub,
+                                                           deps_sp->system_alert_dto_topic,
+                                                           deps_sp->system_alert_dto_schema,
+                                                           deps_sp->dto_source,
+                                                           deps_sp->arm_cache,
                                                            timeout_ms,
-                                                           deps.trace_ctx);
+                                                           deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmPathDownloadAction>(
         "path_download",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmPathDownloadAction>(name,
                                                            config,
-                                                           deps.arm_cmd_dto_pub,
-                                                           deps.arm_cmd_dto_topic,
-                                                           deps.arm_cmd_dto_schema,
-                                                           deps.system_alert_dto_pub,
-                                                           deps.system_alert_dto_topic,
-                                                           deps.system_alert_dto_schema,
-                                                           deps.dto_source,
-                                                           deps.arm_cache,
+                                                           deps_sp->arm_cmd_dto_pub,
+                                                           deps_sp->arm_cmd_dto_topic,
+                                                           deps_sp->arm_cmd_dto_schema,
+                                                           deps_sp->system_alert_dto_pub,
+                                                           deps_sp->system_alert_dto_topic,
+                                                           deps_sp->system_alert_dto_schema,
+                                                           deps_sp->dto_source,
+                                                           deps_sp->arm_cache,
                                                            timeout_ms,
-                                                           deps.trace_ctx);
+                                                           deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmSimpleOpAction>(
         "fault_reset",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmSimpleOpAction>(name,
                                                        config,
                                                        "fault_reset",
-                                                       deps.arm_cmd_dto_pub,
-                                                       deps.arm_cmd_dto_topic,
-                                                       deps.arm_cmd_dto_schema,
-                                                       deps.arm_cache,
+                                                       deps_sp->arm_cmd_dto_pub,
+                                                       deps_sp->arm_cmd_dto_topic,
+                                                       deps_sp->arm_cmd_dto_schema,
+                                                       deps_sp->arm_cache,
                                                        timeout_ms,
-                                                       deps.trace_ctx);
+                                                       deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmSimpleOpAction>(
         "FaultReset",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmSimpleOpAction>(name,
                                                        config,
                                                        "fault_reset",
-                                                       deps.arm_cmd_dto_pub,
-                                                       deps.arm_cmd_dto_topic,
-                                                       deps.arm_cmd_dto_schema,
-                                                       deps.arm_cache,
+                                                       deps_sp->arm_cmd_dto_pub,
+                                                       deps_sp->arm_cmd_dto_topic,
+                                                       deps_sp->arm_cmd_dto_schema,
+                                                       deps_sp->arm_cache,
                                                        timeout_ms,
-                                                       deps.trace_ctx);
+                                                       deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmSimpleOpAction>(
         "reset_system",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmSimpleOpAction>(name,
                                                        config,
                                                        "reset_system",
-                                                       deps.arm_cmd_dto_pub,
-                                                       deps.arm_cmd_dto_topic,
-                                                       deps.arm_cmd_dto_schema,
-                                                       deps.arm_cache,
+                                                       deps_sp->arm_cmd_dto_pub,
+                                                       deps_sp->arm_cmd_dto_topic,
+                                                       deps_sp->arm_cmd_dto_schema,
+                                                       deps_sp->arm_cache,
                                                        timeout_ms,
-                                                       deps.trace_ctx);
+                                                       deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmSimpleOpAction>(
         "ResetSystem",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmSimpleOpAction>(name,
                                                        config,
                                                        "reset_system",
-                                                       deps.arm_cmd_dto_pub,
-                                                       deps.arm_cmd_dto_topic,
-                                                       deps.arm_cmd_dto_schema,
-                                                       deps.arm_cache,
+                                                       deps_sp->arm_cmd_dto_pub,
+                                                       deps_sp->arm_cmd_dto_topic,
+                                                       deps_sp->arm_cmd_dto_schema,
+                                                       deps_sp->arm_cache,
                                                        timeout_ms,
-                                                       deps.trace_ctx);
+                                                       deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmSimpleOpAction>(
         "slow_speed",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmSimpleOpAction>(name,
                                                        config,
                                                        "slow_speed",
-                                                       deps.arm_cmd_dto_pub,
-                                                       deps.arm_cmd_dto_topic,
-                                                       deps.arm_cmd_dto_schema,
-                                                       deps.arm_cache,
+                                                       deps_sp->arm_cmd_dto_pub,
+                                                       deps_sp->arm_cmd_dto_topic,
+                                                       deps_sp->arm_cmd_dto_schema,
+                                                       deps_sp->arm_cache,
                                                        timeout_ms,
-                                                       deps.trace_ctx);
+                                                       deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmSimpleOpAction>(
         "slowSpeed",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmSimpleOpAction>(name,
                                                        config,
                                                        "slowSpeed",
-                                                       deps.arm_cmd_dto_pub,
-                                                       deps.arm_cmd_dto_topic,
-                                                       deps.arm_cmd_dto_schema,
-                                                       deps.arm_cache,
+                                                       deps_sp->arm_cmd_dto_pub,
+                                                       deps_sp->arm_cmd_dto_topic,
+                                                       deps_sp->arm_cmd_dto_schema,
+                                                       deps_sp->arm_cache,
                                                        timeout_ms,
-                                                       deps.trace_ctx);
+                                                       deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmSimpleOpAction>(
         "quick_stop",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmSimpleOpAction>(name,
                                                        config,
                                                        "quick_stop",
-                                                       deps.arm_cmd_dto_pub,
-                                                       deps.arm_cmd_dto_topic,
-                                                       deps.arm_cmd_dto_schema,
-                                                       deps.arm_cache,
+                                                       deps_sp->arm_cmd_dto_pub,
+                                                       deps_sp->arm_cmd_dto_topic,
+                                                       deps_sp->arm_cmd_dto_schema,
+                                                       deps_sp->arm_cache,
                                                        timeout_ms,
-                                                       deps.trace_ctx);
+                                                       deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmSimpleOpAction>(
         "quickStop",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmSimpleOpAction>(name,
                                                        config,
                                                        "quickStop",
-                                                       deps.arm_cmd_dto_pub,
-                                                       deps.arm_cmd_dto_topic,
-                                                       deps.arm_cmd_dto_schema,
-                                                       deps.arm_cache,
+                                                       deps_sp->arm_cmd_dto_pub,
+                                                       deps_sp->arm_cmd_dto_topic,
+                                                       deps_sp->arm_cmd_dto_schema,
+                                                       deps_sp->arm_cache,
                                                        timeout_ms,
-                                                       deps.trace_ctx);
+                                                       deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmSimpleOpAction>(
         "emergency_stop",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmSimpleOpAction>(name,
                                                        config,
                                                        "emergency_stop",
-                                                       deps.arm_cmd_dto_pub,
-                                                       deps.arm_cmd_dto_topic,
-                                                       deps.arm_cmd_dto_schema,
-                                                       deps.arm_cache,
+                                                       deps_sp->arm_cmd_dto_pub,
+                                                       deps_sp->arm_cmd_dto_topic,
+                                                       deps_sp->arm_cmd_dto_schema,
+                                                       deps_sp->arm_cache,
                                                        timeout_ms,
-                                                       deps.trace_ctx);
+                                                       deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmSimpleOpAction>(
         "EmergencyStop",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmSimpleOpAction>(name,
                                                        config,
                                                        "emergency_stop",
-                                                       deps.arm_cmd_dto_pub,
-                                                       deps.arm_cmd_dto_topic,
-                                                       deps.arm_cmd_dto_schema,
-                                                       deps.arm_cache,
+                                                       deps_sp->arm_cmd_dto_pub,
+                                                       deps_sp->arm_cmd_dto_topic,
+                                                       deps_sp->arm_cmd_dto_schema,
+                                                       deps_sp->arm_cache,
                                                        timeout_ms,
-                                                       deps.trace_ctx);
+                                                       deps_sp->trace_ctx);
         });
 
-    auto reg_bool = [&](const char* name, const char* op) {
+    auto reg_bool = [&factory, deps_sp, timeout_ms](const char* name, const char* op) {
+        const std::string op_s(op);
         factory.registerBuilder<ArmBoolQueryAction>(
             name,
-            [&](const std::string& n, const BT::NodeConfiguration& config) {
+            [deps_sp, timeout_ms, op_s](const std::string& n, const BT::NodeConfiguration& config) {
                 return std::make_unique<ArmBoolQueryAction>(n,
                                                             config,
-                                                            op,
-                                                            deps.arm_cmd_dto_pub,
-                                                            deps.arm_cmd_dto_topic,
-                                                            deps.arm_cmd_dto_schema,
-                                                            deps.arm_cache,
+                                                            op_s,
+                                                            deps_sp->arm_cmd_dto_pub,
+                                                            deps_sp->arm_cmd_dto_topic,
+                                                            deps_sp->arm_cmd_dto_schema,
+                                                            deps_sp->arm_cache,
                                                             timeout_ms,
-                                                            deps.trace_ctx);
+                                                            deps_sp->trace_ctx);
             });
     };
 
@@ -1303,67 +1305,67 @@ void register_arm_control_nodes(BT::BehaviorTreeFactory& factory, const ArmNodeD
 
     factory.registerBuilder<ArmGetRobotModeAction>(
         "get_robot_mode",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmGetRobotModeAction>(name,
                                                            config,
-                                                           deps.arm_cmd_dto_pub,
-                                                           deps.arm_cmd_dto_topic,
-                                                           deps.arm_cmd_dto_schema,
-                                                           deps.arm_cache,
+                                                           deps_sp->arm_cmd_dto_pub,
+                                                           deps_sp->arm_cmd_dto_topic,
+                                                           deps_sp->arm_cmd_dto_schema,
+                                                           deps_sp->arm_cache,
                                                            timeout_ms,
-                                                           deps.trace_ctx);
+                                                           deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmGetRobotModeAction>(
         "GetRobotMode",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmGetRobotModeAction>(name,
                                                            config,
-                                                           deps.arm_cmd_dto_pub,
-                                                           deps.arm_cmd_dto_topic,
-                                                           deps.arm_cmd_dto_schema,
-                                                           deps.arm_cache,
+                                                           deps_sp->arm_cmd_dto_pub,
+                                                           deps_sp->arm_cmd_dto_topic,
+                                                           deps_sp->arm_cmd_dto_schema,
+                                                           deps_sp->arm_cache,
                                                            timeout_ms,
-                                                           deps.trace_ctx);
+                                                           deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmGetJointActualPosAction>(
         "get_joint_actual_pos",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmGetJointActualPosAction>(name,
                                                                 config,
-                                                                deps.arm_cmd_dto_pub,
-                                                                deps.arm_cmd_dto_topic,
-                                                                deps.arm_cmd_dto_schema,
-                                                                deps.arm_cache,
+                                                                deps_sp->arm_cmd_dto_pub,
+                                                                deps_sp->arm_cmd_dto_topic,
+                                                                deps_sp->arm_cmd_dto_schema,
+                                                                deps_sp->arm_cache,
                                                                 timeout_ms,
-                                                                deps.trace_ctx);
+                                                                deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmGetJointActualPosAction>(
         "GetJointActualPos",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmGetJointActualPosAction>(name,
                                                                 config,
-                                                                deps.arm_cmd_dto_pub,
-                                                                deps.arm_cmd_dto_topic,
-                                                                deps.arm_cmd_dto_schema,
-                                                                deps.arm_cache,
+                                                                deps_sp->arm_cmd_dto_pub,
+                                                                deps_sp->arm_cmd_dto_topic,
+                                                                deps_sp->arm_cmd_dto_schema,
+                                                                deps_sp->arm_cache,
                                                                 timeout_ms,
-                                                                deps.trace_ctx);
+                                                                deps_sp->trace_ctx);
         });
 
     factory.registerBuilder<ArmGetJointActualPosAction>(
         "ArmGetJointActualPos",
-        [&](const std::string& name, const BT::NodeConfiguration& config) {
+        [deps_sp, timeout_ms](const std::string& name, const BT::NodeConfiguration& config) {
             return std::make_unique<ArmGetJointActualPosAction>(name,
                                                                 config,
-                                                                deps.arm_cmd_dto_pub,
-                                                                deps.arm_cmd_dto_topic,
-                                                                deps.arm_cmd_dto_schema,
-                                                                deps.arm_cache,
+                                                                deps_sp->arm_cmd_dto_pub,
+                                                                deps_sp->arm_cmd_dto_topic,
+                                                                deps_sp->arm_cmd_dto_schema,
+                                                                deps_sp->arm_cache,
                                                                 timeout_ms,
-                                                                deps.trace_ctx);
+                                                                deps_sp->trace_ctx);
         });
 }
 

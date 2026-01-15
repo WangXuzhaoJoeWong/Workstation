@@ -1,4 +1,4 @@
-#include "wxz_workstation/arm_control/app.h"
+#include "app.h"
 
 int main() {
     return wxz::workstation::arm_control::run();

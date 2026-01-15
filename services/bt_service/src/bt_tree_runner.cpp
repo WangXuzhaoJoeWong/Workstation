@@ -1,4 +1,4 @@
-#include "wxz_workstation/bt_service/bt_tree_runner.h"
+#include "bt_tree_runner.h"
 
 #include <algorithm>
 #include <exception>
@@ -8,7 +8,7 @@
 #include <behaviortree_cpp_v3/loggers/bt_zmq_publisher.h>
 #endif
 
-#include "wxz_workstation/bt_service/arm_types.h"
+#include "arm_types.h"
 
 namespace wxz::workstation::bt_service {
 
@@ -23,9 +23,14 @@ BtTreeRunner::~BtTreeRunner() = default;
 TreeReloadResult BtTreeRunner::reload_if_changed() {
     std::string xml;
     if (!load_text_file(xml_path_, xml)) {
-        logger_->log(wxz::core::LogLevel::Error, std::string("failed to read xml: ") + xml_path_);
+        if (!read_error_reported_) {
+            logger_->log(wxz::core::LogLevel::Error, std::string("failed to read xml: ") + xml_path_);
+            read_error_reported_ = true;
+        }
         return TreeReloadResult::ReadError;
     }
+
+    read_error_reported_ = false;
 
     if (xml == last_xml_) return TreeReloadResult::Unchanged;
 
@@ -58,6 +63,11 @@ void BtTreeRunner::configure_groot1(const Groot1Config& cfg) {
 #if WXZ_BT_HAS_GROOT1
     zmq_pub_.reset();
     if (!cfg.enable) return;
+
+    if (!tree_.rootNode()) {
+        logger_->log(wxz::core::LogLevel::Warn, "Groot1 requested but tree not loaded; skip Groot1 init");
+        return;
+    }
 
     int port = cfg.port;
     int server_port = (cfg.server_port > 0) ? cfg.server_port : (cfg.port + 1);
