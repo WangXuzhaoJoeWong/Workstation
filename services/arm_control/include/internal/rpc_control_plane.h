@@ -4,6 +4,7 @@
 #include <string>
 
 #include "internal/arm_control_config.h"
+#include "workstation/node.h"
 #include "workstation/service.h"
 
 namespace wxz::core {
@@ -34,6 +35,16 @@ std::unique_ptr<wxz::workstation::RpcService> start_arm_rpc_control_plane(bool e
                                                                           wxz::core::Logger& logger);
 
 /// start_arm_rpc_control_plane 的便捷重载：从 ArmControlConfig 读取 enable/domain/topic/name/version。
+///
+/// ROS-like 推荐接口：RpcService 由 Node 创建与托管（共享 Executor/Strand 生命周期与观测口径）。
+std::unique_ptr<wxz::workstation::RpcService> start_arm_rpc_control_plane(const ArmControlConfig& cfg,
+                                                                          wxz::workstation::Node& node,
+                                                                          ArmCommandProcessor& processor,
+                                                                          IArmClient& arm,
+                                                                          wxz::core::Strand& arm_sdk_strand,
+                                                                          wxz::core::Logger& logger);
+
+/// 兼容接口：不依赖 Node，直接构造 RpcService（legacy）。
 std::unique_ptr<wxz::workstation::RpcService> start_arm_rpc_control_plane(const ArmControlConfig& cfg,
                                                                           ArmCommandProcessor& processor,
                                                                           IArmClient& arm,

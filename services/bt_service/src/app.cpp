@@ -31,6 +31,8 @@
 #include "node_wiring.h"
 #include "rpc_control_plane.h"
 
+#include "workstation/node.h"
+
 namespace {
 
 struct MetricsExportRuntime {
@@ -200,11 +202,6 @@ static int bt_service_main_impl() {
 
     std::atomic<int> requested_exit_code{0};
 
-    wxz::core::NodeBase node(wxz::workstation::bt_service::make_bt_node_config(cfg, logger));
-    node.install_signal_handlers();
-
-    auto metrics_export = maybe_start_metrics_export(node, logger, "workstation_bt_service");
-
     logger.log(wxz::core::LogLevel::Info,
                "start domain=" + std::to_string(cfg.domain) + " xml='" + cfg.bt.xml_path + "' tick_ms=" +
                    std::to_string(cfg.bt.tick_ms) + " reload_ms=" + std::to_string(cfg.bt.reload_ms));
@@ -221,8 +218,19 @@ static int bt_service_main_impl() {
     wxz::core::Strand arm_status_ingress_strand(exec);
     wxz::core::Strand rpc_strand(exec);
 
+    wxz::workstation::Node node(wxz::workstation::Node::Options{
+        wxz::workstation::bt_service::make_bt_node_config(cfg, logger),
+        &exec,
+        &arm_status_ingress_strand,
+        &logger,
+        "workstation_bt_service",
+    });
+    node.install_signal_handlers();
+
+    auto metrics_export = maybe_start_metrics_export(node.base(), logger, "workstation_bt_service");
+
     auto fault_recovery = maybe_start_fault_recovery(exec,
-                                                     node,
+                                                     node.base(),
                                                      logger,
                                                      cfg.domain,
                                                      cfg.fault_status_topic,
@@ -231,28 +239,26 @@ static int bt_service_main_impl() {
 
     const std::size_t arm_status_pool_buffers = static_cast<std::size_t>(
         std::max(1, wxz::core::getenv_int("WXZ_BT_ARM_STATUS_INGRESS_POOL_BUFFERS", 128)));
-    wxz::core::ByteBufferPool arm_status_ingress_pool(wxz::core::ByteBufferPool::Options{
-        .buffers = arm_status_pool_buffers,
-        .buffer_capacity = cfg.dto.max_payload,
-    });
 
     {
-        auto channels = wxz::workstation::bt_service::make_dds_channels(cfg);
+        auto channels = wxz::workstation::bt_service::make_dds_channels(cfg, node);
 
         BT::BehaviorTreeFactory factory;
-        wxz::workstation::bt_service::setup_arm_control_bt(factory,
-                                                          cfg,
-                                                          channels,
-                                                          arm_status_ingress_pool,
-                                                          arm_status_ingress_strand,
-                                                          arm_cache,
-                                                          trace_ctx);
+        auto arm_status_sub = wxz::workstation::bt_service::setup_arm_control_bt(factory,
+                                             cfg,
+                                             node,
+                                             channels,
+                                             arm_status_ingress_strand,
+                                             arm_status_pool_buffers,
+                                             arm_cache,
+                                             trace_ctx);
+        (void)arm_status_sub;
 
         auto tree_runner = wxz::workstation::bt_service::make_bt_tree_runner(factory, cfg.bt, logger);
 
         auto rpc_server = wxz::workstation::bt_service::start_bt_rpc_control_plane(cfg, node, *tree_runner, rpc_strand, logger);
 
-        wxz::workstation::bt_service::run_bt_main_loop(node, exec, *tree_runner, cfg.bt.tick_ms);
+        wxz::workstation::bt_service::run_bt_main_loop(node, *tree_runner, cfg.bt.tick_ms);
 
         if (rpc_server) rpc_server->stop();
     }

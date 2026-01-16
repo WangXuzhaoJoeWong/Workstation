@@ -4,12 +4,9 @@
 #include <iostream>
 #include <string>
 #include <utility>
-#include <vector>
 
-#include "fastdds_channel.h"
 #include "service_common.h"
 #include "dto/event_dto.h"
-#include "dto/event_dto_cdr.h"
 #include "arm_types.h"
 
 namespace wxz::workstation::bt_service {
@@ -19,10 +16,10 @@ class ArmMoveLAction : public BT::StatefulActionNode {
 public:
     ArmMoveLAction(const std::string& name,
                    const BT::NodeConfiguration& config,
-                   wxz::core::FastddsChannel* cmd_dto_pub,
+                   wxz::workstation::EventDtoPublisher* cmd_dto_pub,
                    std::string cmd_dto_topic,
                    std::string cmd_dto_schema,
-                   wxz::core::FastddsChannel* alert_pub,
+                   wxz::workstation::EventDtoPublisher* alert_pub,
                    std::string alert_topic,
                    std::string alert_schema,
                    std::string dto_source,
@@ -103,11 +100,11 @@ public:
     }
 
 private:
-    wxz::core::FastddsChannel* cmd_dto_pub_{nullptr};
+    wxz::workstation::EventDtoPublisher* cmd_dto_pub_{nullptr};
     std::string cmd_dto_topic_;
     std::string cmd_dto_schema_;
 
-    wxz::core::FastddsChannel* alert_pub_{nullptr};
+    wxz::workstation::EventDtoPublisher* alert_pub_{nullptr};
     std::string alert_topic_;
     std::string alert_schema_;
     std::string dto_source_;
@@ -129,10 +126,7 @@ private:
         EventDTOUtil::fillMeta(dto, dto_source_);
         dto.event_id = kv.count("id") ? kv.at("id") : "";
 
-        std::vector<std::uint8_t> buf;
-        if (!wxz::dto::encode_event_dto_cdr(dto, buf)) return false;
-        (void)cmd_dto_pub_->publish(buf.data(), buf.size());
-        return true;
+        return cmd_dto_pub_->publish(dto);
     }
 
     void publish_alert_once(const std::string& error_code, const std::string& message, const ArmResp* resp) {
@@ -163,9 +157,7 @@ private:
         EventDTOUtil::fillMeta(dto, dto_source_);
         dto.event_id = id_;
 
-        std::vector<std::uint8_t> buf;
-        if (wxz::dto::encode_event_dto_cdr(dto, buf)) {
-            (void)alert_pub_->publish(buf.data(), buf.size());
+        if (alert_pub_->publish(dto)) {
             std::cerr << "[workstation_bt_service][INF] arm alert published code=" << error_code
                       << " op=moveL node=" << name() << " id=" << id_ << "\n";
         }
@@ -177,10 +169,10 @@ class ArmPowerOnAction : public BT::StatefulActionNode {
 public:
     ArmPowerOnAction(const std::string& name,
                      const BT::NodeConfiguration& config,
-                     wxz::core::FastddsChannel* cmd_dto_pub,
+                     wxz::workstation::EventDtoPublisher* cmd_dto_pub,
                      std::string cmd_dto_topic,
                      std::string cmd_dto_schema,
-                     wxz::core::FastddsChannel* alert_pub,
+                     wxz::workstation::EventDtoPublisher* alert_pub,
                      std::string alert_topic,
                      std::string alert_schema,
                      std::string dto_source,
@@ -235,11 +227,11 @@ public:
     }
 
 private:
-    wxz::core::FastddsChannel* cmd_dto_pub_{nullptr};
+    wxz::workstation::EventDtoPublisher* cmd_dto_pub_{nullptr};
     std::string cmd_dto_topic_;
     std::string cmd_dto_schema_;
 
-    wxz::core::FastddsChannel* alert_pub_{nullptr};
+    wxz::workstation::EventDtoPublisher* alert_pub_{nullptr};
     std::string alert_topic_;
     std::string alert_schema_;
     std::string dto_source_;
@@ -261,10 +253,7 @@ private:
         EventDTOUtil::fillMeta(dto, dto_source_);
         dto.event_id = kv.count("id") ? kv.at("id") : "";
 
-        std::vector<std::uint8_t> buf;
-        if (!wxz::dto::encode_event_dto_cdr(dto, buf)) return false;
-        (void)cmd_dto_pub_->publish(buf.data(), buf.size());
-        return true;
+        return cmd_dto_pub_->publish(dto);
     }
 
     void publish_alert_once(const std::string& error_code, const std::string& message, const ArmResp* resp) {
@@ -295,9 +284,7 @@ private:
         EventDTOUtil::fillMeta(dto, dto_source_);
         dto.event_id = id_;
 
-        std::vector<std::uint8_t> buf;
-        if (wxz::dto::encode_event_dto_cdr(dto, buf)) {
-            (void)alert_pub_->publish(buf.data(), buf.size());
+        if (alert_pub_->publish(dto)) {
             std::cerr << "[workstation_bt_service][INF] arm alert published code=" << error_code
                       << " op=power_on_enable node=" << name() << " id=" << id_ << "\n";
         }
@@ -309,10 +296,10 @@ class ArmPathDownloadAction : public BT::StatefulActionNode {
 public:
     ArmPathDownloadAction(const std::string& name,
                           const BT::NodeConfiguration& config,
-                          wxz::core::FastddsChannel* cmd_dto_pub,
+                          wxz::workstation::EventDtoPublisher* cmd_dto_pub,
                           std::string cmd_dto_topic,
                           std::string cmd_dto_schema,
-                          wxz::core::FastddsChannel* alert_pub,
+                          wxz::workstation::EventDtoPublisher* alert_pub,
                           std::string alert_topic,
                           std::string alert_schema,
                           std::string dto_source,
@@ -378,11 +365,11 @@ public:
     }
 
 private:
-    wxz::core::FastddsChannel* cmd_dto_pub_{nullptr};
+    wxz::workstation::EventDtoPublisher* cmd_dto_pub_{nullptr};
     std::string cmd_dto_topic_;
     std::string cmd_dto_schema_;
 
-    wxz::core::FastddsChannel* alert_pub_{nullptr};
+    wxz::workstation::EventDtoPublisher* alert_pub_{nullptr};
     std::string alert_topic_;
     std::string alert_schema_;
     std::string dto_source_;
@@ -404,10 +391,7 @@ private:
         EventDTOUtil::fillMeta(dto, dto_source_);
         dto.event_id = kv.count("id") ? kv.at("id") : "";
 
-        std::vector<std::uint8_t> buf;
-        if (!wxz::dto::encode_event_dto_cdr(dto, buf)) return false;
-        (void)cmd_dto_pub_->publish(buf.data(), buf.size());
-        return true;
+        return cmd_dto_pub_->publish(dto);
     }
 
     void publish_alert_once(const std::string& error_code, const std::string& message, const ArmResp* resp) {
@@ -438,9 +422,7 @@ private:
         EventDTOUtil::fillMeta(dto, dto_source_);
         dto.event_id = id_;
 
-        std::vector<std::uint8_t> buf;
-        if (wxz::dto::encode_event_dto_cdr(dto, buf)) {
-            (void)alert_pub_->publish(buf.data(), buf.size());
+        if (alert_pub_->publish(dto)) {
             std::cerr << "[workstation_bt_service][INF] arm alert published code=" << error_code
                       << " op=path_download node=" << name() << " id=" << id_ << "\n";
         }
@@ -452,7 +434,7 @@ class ArmMoveJAction : public BT::StatefulActionNode {
 public:
     ArmMoveJAction(const std::string& name,
                    const BT::NodeConfiguration& config,
-                   wxz::core::FastddsChannel* cmd_dto_pub,
+                   wxz::workstation::EventDtoPublisher* cmd_dto_pub,
                    std::string cmd_dto_topic,
                    std::string cmd_dto_schema,
                    ArmRespCache* resp_cache,
@@ -503,7 +485,7 @@ public:
     }
 
 private:
-    wxz::core::FastddsChannel* cmd_dto_pub_{nullptr};
+    wxz::workstation::EventDtoPublisher* cmd_dto_pub_{nullptr};
     std::string cmd_dto_topic_;
     std::string cmd_dto_schema_;
 
@@ -523,10 +505,7 @@ private:
         EventDTOUtil::fillMeta(dto, "workstation_bt_service");
         dto.event_id = kv.count("id") ? kv.at("id") : "";
 
-        std::vector<std::uint8_t> buf;
-        if (!wxz::dto::encode_event_dto_cdr(dto, buf)) return false;
-        (void)cmd_dto_pub_->publish(buf.data(), buf.size());
-        return true;
+        return cmd_dto_pub_->publish(dto);
     }
 };
 
@@ -535,7 +514,7 @@ public:
     ArmSimpleOpAction(const std::string& name,
                       const BT::NodeConfiguration& config,
                       std::string op,
-                      wxz::core::FastddsChannel* cmd_dto_pub,
+                      wxz::workstation::EventDtoPublisher* cmd_dto_pub,
                       std::string cmd_dto_topic,
                       std::string cmd_dto_schema,
                       ArmRespCache* resp_cache,
@@ -593,7 +572,7 @@ public:
 
 private:
     std::string op_;
-    wxz::core::FastddsChannel* cmd_dto_pub_{nullptr};
+    wxz::workstation::EventDtoPublisher* cmd_dto_pub_{nullptr};
     std::string cmd_dto_topic_;
     std::string cmd_dto_schema_;
 
@@ -623,10 +602,7 @@ private:
         EventDTOUtil::fillMeta(dto, "workstation_bt_service");
         dto.event_id = kv.count("id") ? kv.at("id") : "";
 
-        std::vector<std::uint8_t> buf;
-        if (!wxz::dto::encode_event_dto_cdr(dto, buf)) return false;
-        (void)cmd_dto_pub_->publish(buf.data(), buf.size());
-        return true;
+        return cmd_dto_pub_->publish(dto);
     }
 };
 
@@ -635,7 +611,7 @@ public:
     ArmBoolQueryAction(const std::string& name,
                        const BT::NodeConfiguration& config,
                        std::string op,
-                       wxz::core::FastddsChannel* cmd_dto_pub,
+                       wxz::workstation::EventDtoPublisher* cmd_dto_pub,
                        std::string cmd_dto_topic,
                        std::string cmd_dto_schema,
                        ArmRespCache* resp_cache,
@@ -691,7 +667,7 @@ public:
 
 private:
     std::string op_;
-    wxz::core::FastddsChannel* cmd_dto_pub_{nullptr};
+    wxz::workstation::EventDtoPublisher* cmd_dto_pub_{nullptr};
     std::string cmd_dto_topic_;
     std::string cmd_dto_schema_;
 
@@ -721,10 +697,7 @@ private:
         EventDTOUtil::fillMeta(dto, "workstation_bt_service");
         dto.event_id = kv.count("id") ? kv.at("id") : "";
 
-        std::vector<std::uint8_t> buf;
-        if (!wxz::dto::encode_event_dto_cdr(dto, buf)) return false;
-        (void)cmd_dto_pub_->publish(buf.data(), buf.size());
-        return true;
+        return cmd_dto_pub_->publish(dto);
     }
 };
 
@@ -732,7 +705,7 @@ class ArmGetRobotModeAction : public BT::StatefulActionNode {
 public:
     ArmGetRobotModeAction(const std::string& name,
                           const BT::NodeConfiguration& config,
-                          wxz::core::FastddsChannel* cmd_dto_pub,
+                          wxz::workstation::EventDtoPublisher* cmd_dto_pub,
                           std::string cmd_dto_topic,
                           std::string cmd_dto_schema,
                           ArmRespCache* resp_cache,
@@ -785,7 +758,7 @@ public:
     }
 
 private:
-    wxz::core::FastddsChannel* cmd_dto_pub_{nullptr};
+    wxz::workstation::EventDtoPublisher* cmd_dto_pub_{nullptr};
     std::string cmd_dto_topic_;
     std::string cmd_dto_schema_;
 
@@ -815,10 +788,7 @@ private:
         EventDTOUtil::fillMeta(dto, "workstation_bt_service");
         dto.event_id = kv.count("id") ? kv.at("id") : "";
 
-        std::vector<std::uint8_t> buf;
-        if (!wxz::dto::encode_event_dto_cdr(dto, buf)) return false;
-        (void)cmd_dto_pub_->publish(buf.data(), buf.size());
-        return true;
+        return cmd_dto_pub_->publish(dto);
     }
 };
 
@@ -826,7 +796,7 @@ class ArmGetJointActualPosAction : public BT::StatefulActionNode {
 public:
     ArmGetJointActualPosAction(const std::string& name,
                                const BT::NodeConfiguration& config,
-                               wxz::core::FastddsChannel* cmd_dto_pub,
+                               wxz::workstation::EventDtoPublisher* cmd_dto_pub,
                                std::string cmd_dto_topic,
                                std::string cmd_dto_schema,
                                ArmRespCache* resp_cache,
@@ -885,7 +855,7 @@ public:
     }
 
 private:
-    wxz::core::FastddsChannel* cmd_dto_pub_{nullptr};
+    wxz::workstation::EventDtoPublisher* cmd_dto_pub_{nullptr};
     std::string cmd_dto_topic_;
     std::string cmd_dto_schema_;
 
@@ -915,10 +885,7 @@ private:
         EventDTOUtil::fillMeta(dto, "workstation_bt_service");
         dto.event_id = kv.count("id") ? kv.at("id") : "";
 
-        std::vector<std::uint8_t> buf;
-        if (!wxz::dto::encode_event_dto_cdr(dto, buf)) return false;
-        (void)cmd_dto_pub_->publish(buf.data(), buf.size());
-        return true;
+        return cmd_dto_pub_->publish(dto);
     }
 };
 

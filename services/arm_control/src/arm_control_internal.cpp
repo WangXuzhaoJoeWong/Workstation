@@ -1,11 +1,14 @@
 #include "internal/arm_control_internal.h"
 
 #include <cmath>
+#include <chrono>
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <optional>
 #include <sstream>
+#include <thread>
 #include <vector>
 
 #include "service_common.h"
@@ -41,10 +44,179 @@ const char* cr_result_name(CRresult r) {
     }
 }
 
+const char* robot_mode_name(RobotModes m) {
+    switch (m) {
+        case Closed: return "Closed";
+        case Disconnect: return "Disconnect";
+        case ConfirmSafty: return "ConfirmSafty";
+        case Booting: return "Booting";
+        case ControlerIdle: return "ControlerIdle";
+        case ControlerUpdataFirmWare: return "ControlerUpdataFirmWare";
+
+        case JointPowerOff: return "JointPowerOff";
+        case JointPowerOn: return "JointPowerOn";
+        case JointIdle: return "JointIdle";
+        case BackDrive: return "BackDrive";
+        case ReleaseBrake: return "ReleaseBrake";
+        case Enable: return "Enable";
+        case CloseBrake: return "CloseBrake";
+        case Jog: return "Jog";
+        case Teach: return "Teach";
+        case ForceControlTest: return "ForceControlTest";
+        case ProgramStop: return "ProgramStop";
+        case ProgramPause: return "ProgramPause";
+        case ProgramStopping: return "ProgramStopping";
+        case ProgramPausing: return "ProgramPausing";
+        case ProgramRun_MotionStop: return "ProgramRun_MotionStop";
+        case ProgramRun_MotionReducing: return "ProgramRun_MotionReducing";
+        case ProgramRun_MotionMoving: return "ProgramRun_MotionMoving";
+        case ProgramRun_MotionCanBlend: return "ProgramRun_MotionCanBlend";
+        case Imdstop: return "Imdstop";
+        case ProtectiveStop: return "ProtectiveStop";
+        default: return "Unknown";
+    }
+}
+
 bool should_disconnect_on_error(CRresult r) {
     // 经验规则：仅在疑似传输/会话问题时断开连接。
     // 运动/状态类错误尽量保持连接，避免反复重连刷屏。
     return (r == operate_timeout || r == thread_running);
+}
+
+struct MotionPrecheckState {
+    enum RobotModes mode = Closed;
+    BOOL moving = FALSE;
+    int control_mode = -1;
+    unsigned int speed_percent = 0;
+    BOOL tp_use = FALSE;
+};
+
+CRresult read_motion_precheck_state(RobotHandle handle, MotionPrecheckState& out) {
+    CRresult r = ::cr_get_robotMode(handle, &out.mode);
+    if (r != success) return r;
+    r = ::cr_get_robotMoveStatus(handle, &out.moving);
+    if (r != success) return r;
+    r = ::cr_get_controlMode(handle, &out.control_mode);
+    if (r != success) return r;
+    r = ::cr_get_robotSpeedPercent(handle, &out.speed_percent);
+    if (r != success) return r;
+    // 该字段用于诊断“示教器启用状态”是否影响外部运动许可；读失败不阻断。
+    (void)::cr_cfg_safety_tp_use_get(handle, &out.tp_use);
+    return success;
+}
+
+const char* control_mode_name(int m) {
+    switch (m) {
+        case CONTROL_MODE_POSITION: return "POSITION";
+        case CONTROL_MODE_TEACH: return "TEACH";
+        case CONTROL_MODE_FORCE: return "FORCE";
+        case CONTROL_MODE_TORQUE: return "TORQUE";
+        default: return "UNKNOWN";
+    }
+}
+
+bool is_mode_motion_allowed(enum RobotModes mode) {
+    // 这里选择“保守允许”，避免在明显不安全/不确定的状态下下发阻塞运动。
+    // 经验上：Enable / ProgramStop 是最常见的“可接受外部点到点控制”的状态。
+    switch (mode) {
+        case Enable:
+        case ProgramStop:
+            return true;
+        default:
+            return false;
+    }
+}
+
+CRresult precheck_blocking_motion_or_reject(ArmSdkClient& self, RobotHandle handle, const char* api_name, double speed_hint) {
+    MotionPrecheckState st{};
+    const CRresult r = read_motion_precheck_state(handle, st);
+    if (r != success) return r;
+
+    if (self.IsStopSignal()) {
+        return CR_FAILED;
+    }
+
+    if (st.moving == TRUE) {
+        std::cerr << api_name << " rejected: robot is already moving"
+                  << " robotMode=" << static_cast<int>(st.mode) << "(" << robot_mode_name(st.mode) << ")"
+                  << " controlMode=" << st.control_mode << "(" << control_mode_name(st.control_mode) << ")"
+                  << " speedPercent=" << st.speed_percent
+                  << " tpUse=" << (st.tp_use == TRUE ? 1 : 0)
+                  << " speed_hint=" << speed_hint << "\n";
+        return robotmode_error;
+    }
+
+    if (st.control_mode != CONTROL_MODE_POSITION) {
+        std::cerr << api_name << " rejected: controlMode not POSITION"
+                  << " robotMode=" << static_cast<int>(st.mode) << "(" << robot_mode_name(st.mode) << ")"
+                  << " controlMode=" << st.control_mode << "(" << control_mode_name(st.control_mode) << ")"
+                  << " speedPercent=" << st.speed_percent
+                  << " tpUse=" << (st.tp_use == TRUE ? 1 : 0)
+                  << " hint=Exit teach/freedrive/force mode, switch to POSITION" << "\n";
+        return robotmode_error;
+    }
+
+    if (st.speed_percent == 0) {
+        std::cerr << api_name << " rejected: speedPercent==0"
+                  << " robotMode=" << static_cast<int>(st.mode) << "(" << robot_mode_name(st.mode) << ")"
+                  << " controlMode=" << st.control_mode << "(" << control_mode_name(st.control_mode) << ")"
+                  << " tpUse=" << (st.tp_use == TRUE ? 1 : 0)
+                  << " hint=Increase robot speed percent" << "\n";
+        return robotmode_error;
+    }
+
+    if (!is_mode_motion_allowed(st.mode)) {
+        std::cerr << api_name << " rejected: robotMode not allowed for external blocking move"
+                  << " robotMode=" << static_cast<int>(st.mode) << "(" << robot_mode_name(st.mode) << ")"
+                  << " controlMode=" << st.control_mode << "(" << control_mode_name(st.control_mode) << ")"
+                  << " speedPercent=" << st.speed_percent
+                  << " tpUse=" << (st.tp_use == TRUE ? 1 : 0)
+                  << " hint=Clear ProtectiveStop/E-Stop, stop running program, then enable" << "\n";
+        return robotmode_error;
+    }
+
+    return success;
+}
+
+CRresult wait_motion_complete_or_timeout(ArmSdkClient& self,
+                                        RobotHandle handle,
+                                        const char* api_name,
+                                        std::chrono::milliseconds start_grace,
+                                        std::chrono::milliseconds complete_timeout) {
+    const auto start_deadline = std::chrono::steady_clock::now() + start_grace;
+    BOOL moving = FALSE;
+    while (std::chrono::steady_clock::now() < start_deadline) {
+        if (self.IsStopSignal()) {
+            (void)::cr_stop(handle);
+            return CR_FAILED;
+        }
+        const CRresult r = ::cr_get_robotMoveStatus(handle, &moving);
+        if (r != success) return r;
+        if (moving == TRUE) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+
+    if (moving != TRUE) {
+        return move_error;
+    }
+
+    const auto done_deadline = std::chrono::steady_clock::now() + complete_timeout;
+    while (std::chrono::steady_clock::now() < done_deadline) {
+        if (self.IsStopSignal()) {
+            (void)::cr_stop(handle);
+            return CR_FAILED;
+        }
+        const CRresult r = ::cr_get_robotMoveStatus(handle, &moving);
+        if (r != success) return r;
+        if (moving != TRUE) {
+            std::cerr << api_name << " fallback-wait: motion complete" << "\n";
+            return success;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    std::cerr << api_name << " fallback-wait: timeout" << "\n";
+    return operate_timeout;
 }
 
 } // namespace
@@ -478,26 +650,50 @@ CRresult ArmSdkClient::moveL(const std::array<double, 6>& jointpos,
         return success;
     }
 
+    {
+        const CRresult pr = precheck_blocking_motion_or_reject(*this, handle_, "moveL", speed);
+        if (pr != success) return pr;
+    }
+
     const CRresult r = ::cr_move_line(handle_, p, TRUE);
     if (r != success) {
+        if (r == move_error) {
+            const auto start_grace = std::chrono::milliseconds(Env::get_int("WXZ_ARM_MOVE_START_GRACE_MS", 400));
+            const auto complete_timeout =
+                std::chrono::milliseconds(Env::get_int("WXZ_ARM_MOVE_COMPLETE_TIMEOUT_MS", 600000));
+            std::cerr << "moveL got move_error, entering fallback wait"
+                      << " start_grace_ms=" << start_grace.count()
+                      << " complete_timeout_ms=" << complete_timeout.count() << "\n";
+            const CRresult fr = wait_motion_complete_or_timeout(*this, handle_, "moveL", start_grace, complete_timeout);
+            if (fr == success) return success;
+        }
         // 增补诊断信息，便于区分：参数/单位问题 vs robot mode 问题 vs 运动状态问题。
         enum RobotModes mode = Closed;
         BOOL moving = FALSE;
+        int control_mode = -1;
+        unsigned int speed_percent = 0;
         (void)::cr_get_robotMode(handle_, &mode);
         (void)::cr_get_robotMoveStatus(handle_, &moving);
+        (void)::cr_get_controlMode(handle_, &control_mode);
+        (void)::cr_get_robotSpeedPercent(handle_, &speed_percent);
+        BOOL tp_use = FALSE;
+        (void)::cr_cfg_safety_tp_use_get(handle_, &tp_use);
         std::cerr << "moveL failed code=" << static_cast<int>(r) << " (" << cr_result_name(r) << ")"
-              << " robotMode=" << static_cast<int>(mode)
-              << " isMoving=" << (moving == TRUE ? 1 : 0)
-              << " speed=" << speed << " acc=" << acc << " jerk_in=" << jerk
-              << " coordinateType=" << static_cast<int>(p.coordinateType)
-              << " tcpID=" << p.tcpID
-              << " pointTransType=" << static_cast<int>(p.pointTransType)
-              << " motiontriggerMode=" << static_cast<int>(p.motiontriggerMode)
-              << " xyz_mm=[" << p.pose[0] << "," << p.pose[1] << "," << p.pose[2] << "]"
-              << " rpy_deg=[" << p.pose[3] << "," << p.pose[4] << "," << p.pose[5] << "]"
-              << " joint_deg=[" << p.jointpos[0] << "," << p.jointpos[1] << "," << p.jointpos[2] << ","
-              << p.jointpos[3] << "," << p.jointpos[4] << "," << p.jointpos[5] << "]"
-              << "\n";
+                  << " robotMode=" << static_cast<int>(mode) << "(" << robot_mode_name(mode) << ")"
+                  << " controlMode=" << control_mode
+                  << " speedPercent=" << speed_percent
+                  << " tpUse=" << (tp_use == TRUE ? 1 : 0)
+                  << " isMoving=" << (moving == TRUE ? 1 : 0)
+                  << " speed=" << speed << " acc=" << acc << " jerk_in=" << jerk
+                  << " coordinateType=" << static_cast<int>(p.coordinateType)
+                  << " tcpID=" << p.tcpID
+                  << " pointTransType=" << static_cast<int>(p.pointTransType)
+                  << " motiontriggerMode=" << static_cast<int>(p.motiontriggerMode)
+                  << " xyz_mm=[" << p.pose[0] << "," << p.pose[1] << "," << p.pose[2] << "]"
+                  << " rpy_deg=[" << p.pose[3] << "," << p.pose[4] << "," << p.pose[5] << "]"
+                  << " joint_deg=[" << p.jointpos[0] << "," << p.jointpos[1] << "," << p.jointpos[2] << ","
+                  << p.jointpos[3] << "," << p.jointpos[4] << "," << p.jointpos[5] << "]"
+                  << "\n";
 
         if (should_disconnect_on_error(r)) {
             disconnect();
@@ -531,14 +727,38 @@ CRresult ArmSdkClient::moveJ(const std::array<double, 6>& jointpos, double speed
     p.poseTranType = poseTranMoveToTargetPose;
     p.motiontriggerMode = MovetriggerbyOnlyRpc;
 
+    {
+        const CRresult pr = precheck_blocking_motion_or_reject(*this, handle_, "moveJ", speed_rad_per_s);
+        if (pr != success) return pr;
+    }
+
     const CRresult r = ::cr_move_joint(handle_, p, TRUE);
     if (r != success) {
+        if (r == move_error) {
+            const auto start_grace = std::chrono::milliseconds(Env::get_int("WXZ_ARM_MOVE_START_GRACE_MS", 400));
+            const auto complete_timeout =
+                std::chrono::milliseconds(Env::get_int("WXZ_ARM_MOVE_COMPLETE_TIMEOUT_MS", 600000));
+            std::cerr << "moveJ got move_error, entering fallback wait"
+                      << " start_grace_ms=" << start_grace.count()
+                      << " complete_timeout_ms=" << complete_timeout.count() << "\n";
+            const CRresult fr = wait_motion_complete_or_timeout(*this, handle_, "moveJ", start_grace, complete_timeout);
+            if (fr == success) return success;
+        }
         enum RobotModes mode = Closed;
         BOOL moving = FALSE;
+        int control_mode = -1;
+        unsigned int speed_percent = 0;
         (void)::cr_get_robotMode(handle_, &mode);
         (void)::cr_get_robotMoveStatus(handle_, &moving);
+        (void)::cr_get_controlMode(handle_, &control_mode);
+        (void)::cr_get_robotSpeedPercent(handle_, &speed_percent);
+        BOOL tp_use = FALSE;
+        (void)::cr_cfg_safety_tp_use_get(handle_, &tp_use);
         std::cerr << "moveJ failed code=" << static_cast<int>(r) << " (" << cr_result_name(r) << ")"
-                  << " robotMode=" << static_cast<int>(mode)
+                  << " robotMode=" << static_cast<int>(mode) << "(" << robot_mode_name(mode) << ")"
+                  << " controlMode=" << control_mode
+                  << " speedPercent=" << speed_percent
+                  << " tpUse=" << (tp_use == TRUE ? 1 : 0)
                   << " isMoving=" << (moving == TRUE ? 1 : 0)
                   << " speed_rad_per_s=" << speed_rad_per_s
                   << " coordinateType=" << static_cast<int>(p.coordinateType)

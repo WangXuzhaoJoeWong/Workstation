@@ -281,6 +281,7 @@ int run() {
 
     auto rpc_server = wxz::workstation::arm_control::internal::start_arm_rpc_control_plane(
         cfg,
+        ws_node,
         processor,
         *arm,
         arm_sdk_strand,

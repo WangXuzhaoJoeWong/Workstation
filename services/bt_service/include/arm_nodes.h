@@ -5,9 +5,7 @@
 
 #include <behaviortree_cpp_v3/bt_factory.h>
 
-namespace wxz::core {
-class FastddsChannel;
-}
+#include "workstation/node.h"
 
 namespace wxz::workstation::bt_service {
 
@@ -16,11 +14,11 @@ struct TraceContext;
 
 /// arm_control 相关 BT 节点的依赖集合（topic/schema、发布通道、缓存等）。
 struct ArmNodeDeps {
-    wxz::core::FastddsChannel* arm_cmd_dto_pub{nullptr};
+    wxz::workstation::EventDtoPublisher* arm_cmd_dto_pub{nullptr};
     std::string arm_cmd_dto_topic;
     std::string arm_cmd_dto_schema;
 
-    wxz::core::FastddsChannel* system_alert_dto_pub{nullptr};
+    wxz::workstation::EventDtoPublisher* system_alert_dto_pub{nullptr};
     std::string system_alert_dto_topic;
     std::string system_alert_dto_schema;
 

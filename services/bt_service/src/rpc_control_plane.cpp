@@ -6,30 +6,30 @@
 #include "bt_tree_runner.h"
 
 #include "logger.h"
-#include "node_base.h"
-#include "rpc/rpc_service.h"
 #include "service_common.h"
 #include "strand.h"
+#include "workstation/node.h"
 
 namespace wxz::workstation::bt_service {
 
-std::unique_ptr<wxz::core::rpc::RpcServer> start_bt_rpc_control_plane(const AppConfig& cfg,
-                                                                      wxz::core::NodeBase& node,
+std::unique_ptr<wxz::workstation::RpcService> start_bt_rpc_control_plane(const AppConfig& cfg,
+                                                                      wxz::workstation::Node& node,
                                                                       BtTreeRunner& tree_runner,
                                                                       wxz::core::Strand& rpc_strand,
                                                                       wxz::core::Logger& logger) {
     if (!cfg.rpc.enable) return nullptr;
 
-    wxz::core::rpc::RpcServerOptions rpc_opts;
-    rpc_opts.domain = cfg.domain;
-    rpc_opts.request_topic = cfg.rpc.request_topic;
-    rpc_opts.reply_topic = cfg.rpc.reply_topic;
-    rpc_opts.service_name = cfg.rpc.service_name;
+    auto opts_builder = wxz::workstation::RpcService::Options::builder(cfg.rpc.service_name);
+    opts_builder.sw_version(cfg.sw_version)
+        .request_topic(cfg.rpc.request_topic)
+        .reply_topic(cfg.rpc.reply_topic)
+        .metrics_scope(cfg.rpc.service_name);
 
-    auto rpc_server = std::make_unique<wxz::core::rpc::RpcServer>(std::move(rpc_opts));
-    rpc_server->bind_scheduler(rpc_strand);
+    auto rpc_server = node.create_service_on(
+        rpc_strand,
+        std::move(opts_builder).build());
 
-    using Json = wxz::core::rpc::RpcServer::Json;
+    using Json = wxz::workstation::RpcService::Json;
 
     auto reload_result_to_string = [](TreeReloadResult r) -> std::string {
         switch (r) {
@@ -41,39 +41,28 @@ std::unique_ptr<wxz::core::rpc::RpcServer> start_bt_rpc_control_plane(const AppC
         }
     };
 
-    rpc_server->add_handler("bt.ping", [&](const Json&) {
-        wxz::core::rpc::RpcServer::Reply rep;
-        rep.result = Json{{"service", cfg.rpc.service_name},
-                          {"sw_version", cfg.sw_version},
-                          {"domain", cfg.domain},
-                          {"ts_ms", wxz::core::now_epoch_ms()}};
-        return rep;
-    });
+    rpc_server->add_ping_handler("bt.ping");
 
     rpc_server->add_handler("bt.reload", [&](const Json&) {
         const auto r = tree_runner.reload_if_changed();
         if (r == TreeReloadResult::Ok) {
             tree_runner.configure_groot1(cfg.bt.groot);
         }
-        wxz::core::rpc::RpcServer::Reply rep;
+        wxz::workstation::RpcService::Reply rep;
+        rep.status = wxz::workstation::Status::ok_status();
         rep.result = Json{{"result", reload_result_to_string(r)}};
         return rep;
     });
 
     rpc_server->add_handler("bt.stop", [&](const Json&) {
-        node.request_stop();
-        wxz::core::rpc::RpcServer::Reply rep;
+        node.base().request_stop();
+        wxz::workstation::RpcService::Reply rep;
+        rep.status = wxz::workstation::Status::ok_status();
         rep.result = Json{{"requested", true}};
         return rep;
     });
 
-    if (!rpc_server->start()) {
-        logger.log(wxz::core::LogLevel::Warn, "RPC enabled but failed to start (ignored)");
-        return nullptr;
-    }
-
-    logger.log(wxz::core::LogLevel::Info,
-               "RPC enabled request='" + cfg.rpc.request_topic + "' reply='" + cfg.rpc.reply_topic + "'");
+    if (!rpc_server->start(&logger)) return nullptr;
     return rpc_server;
 }
 

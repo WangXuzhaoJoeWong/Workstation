@@ -1,6 +1,7 @@
 #include "arm_wiring.h"
 
 #include <behaviortree_cpp_v3/bt_factory.h>
+#include <algorithm>
 
 #include "app_config.h"
 #include "arm_nodes.h"
@@ -10,15 +11,22 @@
 
 namespace wxz::workstation::bt_service {
 
-void setup_arm_control_bt(BT::BehaviorTreeFactory& factory,
-                          const AppConfig& cfg,
-                          DdsChannels& channels,
-                          wxz::core::ByteBufferPool& arm_status_ingress_pool,
-                          wxz::core::Strand& arm_status_ingress_strand,
-                          ArmRespCache& arm_cache,
-                          TraceContext& trace_ctx) {
-    install_arm_status_cache_updater(
-        *channels.arm_status_dto_sub, arm_status_ingress_pool, arm_status_ingress_strand, arm_cache);
+std::unique_ptr<wxz::workstation::EventDtoSubscription> setup_arm_control_bt(
+    BT::BehaviorTreeFactory& factory,
+    const AppConfig& cfg,
+    wxz::workstation::Node& node,
+    DdsChannels& channels,
+    wxz::core::Strand& arm_status_ingress_strand,
+    std::size_t arm_status_pool_buffers,
+    ArmRespCache& arm_cache,
+    TraceContext& trace_ctx) {
+    auto arm_status_sub = install_arm_status_cache_updater(node,
+                                                           cfg.arm.status_dto_topic,
+                                                           /*status_dto_schema=*/{},
+                                                           arm_status_ingress_strand,
+                                                           cfg.dto.max_payload,
+                                                           std::max<std::size_t>(1, arm_status_pool_buffers),
+                                                           arm_cache);
 
     register_arm_control_nodes(
         factory,
@@ -34,6 +42,8 @@ void setup_arm_control_bt(BT::BehaviorTreeFactory& factory,
             .arm_timeout_ms = cfg.arm.timeout_ms,
             .trace_ctx = &trace_ctx,
         });
+
+    return arm_status_sub;
 }
 
 }  // namespace wxz::workstation::bt_service

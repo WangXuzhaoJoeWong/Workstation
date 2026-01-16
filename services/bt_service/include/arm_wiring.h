@@ -1,5 +1,10 @@
 #pragma once
 
+#include <cstddef>
+#include <memory>
+
+#include "workstation/node.h"
+
 namespace BT {
 class BehaviorTreeFactory;
 }
@@ -14,7 +19,6 @@ struct TraceContext;
 }  // namespace wxz::workstation::bt_service
 
 namespace wxz::core {
-class ByteBufferPool;
 class Strand;
 }
 
@@ -24,12 +28,14 @@ namespace wxz::workstation::bt_service {
 /// - 创建/注册 BT 节点
 /// - 订阅 arm status 并写入缓存
 /// - 配置 trace 上下文与超时
-void setup_arm_control_bt(BT::BehaviorTreeFactory& factory,
-                          const AppConfig& cfg,
-                          DdsChannels& channels,
-                          wxz::core::ByteBufferPool& arm_status_ingress_pool,
-                          wxz::core::Strand& arm_status_ingress_strand,
-                          ArmRespCache& arm_cache,
-                          TraceContext& trace_ctx);
+std::unique_ptr<wxz::workstation::EventDtoSubscription> setup_arm_control_bt(
+    BT::BehaviorTreeFactory& factory,
+    const AppConfig& cfg,
+    wxz::workstation::Node& node,
+    DdsChannels& channels,
+    wxz::core::Strand& arm_status_ingress_strand,
+    std::size_t arm_status_pool_buffers,
+    ArmRespCache& arm_cache,
+    TraceContext& trace_ctx);
 
 }  // namespace wxz::workstation::bt_service
